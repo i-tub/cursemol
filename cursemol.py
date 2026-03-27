@@ -11,6 +11,53 @@ Controls:
 """
 
 import curses
+from rdkit import Chem
+from rdkit.Chem import AllChem
+
+
+MAX_SCALE = 10.0  # columns per angstrom
+ASPECT_RATIO = 0.4  # horizontal / vertical
+PADDING = 5
+
+BOND_CHARS = {
+    Chem.BondType.SINGLE: '.',
+    Chem.BondType.DOUBLE: '=',
+    Chem.BondType.TRIPLE: '#'
+}
+
+
+def get_box(conf):
+    xyz = conf.GetPositions()
+    return (xyz.min(axis=0), xyz.max(axis=0))
+
+
+def int_coords_for_atom(atom, box, scale, conf):
+    pos = conf.GetAtomPosition(atom.GetIdx())
+    x = PADDING + int((pos.x - box[0][0]) * scale[0])
+    y = PADDING + int((pos.y - box[0][1]) * scale[1])
+    return x, y
+
+
+def draw_line(screen, char, x1, y1, x2, y2):
+    vertical = False
+    if abs(x2-x1) < abs(y2-y1):
+        x1, y1 = y1, x1
+        x2, y2 = y2, x2
+        vertical = True
+    try:
+        slope = 1.0*(y2-y1)/(x2-x1)
+    except ZeroDivisionError:
+        return
+
+    if x1 > x2:
+        x1, x2 = x2, x1
+        y1, y2 = y2, y1
+    for x in range(x1+1, x2):
+        y = int(round(y1 + slope * (x-x1)))
+        if vertical:
+            screen[x][y] = char
+        else:
+            screen[y][x] = char
 
 
 def show_coordinates(stdscr, x_positions, max_y):
@@ -55,6 +102,41 @@ def enter_smiles(stdscr, max_y):
 
 def draw_mol(stdscr, mol):
     """Draw the molecule using ASCII art"""
+    max_y, max_x = stdscr.getmaxyx()
+
+    Chem.Kekulize(mol)
+    conf = mol.GetConformer(0)
+    box = get_box(conf)
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+
+    xscale = min((max_x-PADDING*2)/(xmax-xmin), MAX_SCALE)
+    yscale = xscale*ASPECT_RATIO
+    scale = (xscale, yscale)
+    rows = int(PADDING*2 + (ymax-ymin) * yscale)
+    cols = int(round(xscale * (xmax-xmin) + 2 * PADDING))
+    screen = [[' '] * cols for i in range(rows)]
+
+    for bond in mol.GetBonds():
+        x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf)
+        x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf)
+        draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2, y2)
+
+    for atom in mol.GetAtoms():
+        x, y = int_coords_for_atom(atom, box, scale, conf)
+        sym = atom.GetSymbol()
+        for i, c in enumerate(sym):
+            screen[y][x+i] = c
+
+    stdscr.clear()
+    for i, line in enumerate(reversed(screen)):
+        try:
+            stdscr.addstr(i, 0, ''.join(line))
+        except curses.error:
+            pass
+
+    stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
+    stdscr.refresh()
+    stdscr.getch()
 
 def main(stdscr):
     # Initialize curses
