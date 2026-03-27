@@ -100,10 +100,8 @@ def enter_smiles(stdscr, max_y):
 
     return smiles
 
-def draw_mol(stdscr, mol):
+def draw_mol(stdscr, mol, max_x):
     """Draw the molecule using ASCII art"""
-    max_y, max_x = stdscr.getmaxyx()
-
     Chem.Kekulize(mol)
     conf = mol.GetConformer(0)
     box = get_box(conf)
@@ -127,16 +125,11 @@ def draw_mol(stdscr, mol):
         for i, c in enumerate(sym):
             screen[y][x+i] = c
 
-    stdscr.clear()
     for i, line in enumerate(reversed(screen)):
         try:
             stdscr.addstr(i, 0, ''.join(line))
         except curses.error:
             pass
-
-    stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
-    stdscr.refresh()
-    stdscr.getch()
 
 def main(stdscr):
     # Initialize curses
@@ -154,6 +147,7 @@ def main(stdscr):
 
     # SMILES string storage
     smiles = ""
+    mol = None
 
     # Instructions
     instructions = [
@@ -163,6 +157,10 @@ def main(stdscr):
 
     while True:
         stdscr.clear()
+
+        # Draw molecule if present
+        if mol is not None:
+            draw_mol(stdscr, mol, max_x)
 
         # Draw instructions at the bottom
         for i, line in enumerate(instructions):
@@ -210,9 +208,10 @@ def main(stdscr):
         # Enter SMILES string
         elif key == ord('s'):
             smiles = enter_smiles(stdscr, max_y)
-            mol = Chem.MolFromSmiles(smiles)
-            AllChem.Compute2DCoords(mol)
-            draw_mol(stdscr, mol)
+            if smiles:
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is not None:
+                    AllChem.Compute2DCoords(mol)
 
         # Quit
         elif key == ord('q'):
