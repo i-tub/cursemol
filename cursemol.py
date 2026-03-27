@@ -7,6 +7,7 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
+  x          - Delete atom at cursor position
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
   q          - Quit
 """
@@ -118,6 +119,32 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
     mol_y = (screen_y - PADDING - y_offset) / scale[1] + box[0][1]
 
     return mol_x, mol_y
+
+
+def find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset, tolerance=1):
+    """
+    Find an atom at or near the cursor position (within tolerance cells).
+    Returns atom index or None if no atom found.
+    """
+    if mol.GetNumAtoms() == 0:
+        return None
+
+    conf = mol.GetConformer()
+
+    # Check atoms to find one whose screen position is within tolerance
+    for atom in mol.GetAtoms():
+        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset)
+
+        # Convert screen array position to terminal position
+        rows = max_y - 2
+        terminal_y = rows - 1 - screen_y
+
+        # Check if within tolerance
+        if (abs(screen_x - cursor_x) <= tolerance and
+            abs(terminal_y - cursor_y) <= tolerance):
+            return atom.GetIdx()
+
+    return None
 
 
 def find_bond_atoms(mol, pos_x, pos_y):
@@ -323,7 +350,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | 0-3: bond | q: quit"
+        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | x: delete | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -419,6 +446,18 @@ def main_loop(stdscr, initial_smiles=None):
                         need_redraw = True
                     except Exception:
                         # Invalid element symbol or other error
+                        pass
+
+        # Delete atom at cursor position
+        elif key == ord('x'):
+            if mol is not None and box is not None and scale is not None:
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+                if atom_idx is not None:
+                    try:
+                        mol.RemoveAtom(atom_idx)
+                        need_redraw = True
+                    except Exception:
+                        # Error removing atom
                         pass
 
         # Add/modify/delete bond
