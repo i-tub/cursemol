@@ -7,11 +7,13 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
+  0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
   q          - Quit
 """
 
 import argparse
 import curses
+import math
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -117,6 +119,88 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
 
     return mol_x, mol_y
 
+
+def find_bond_atoms(mol, pos_x, pos_y):
+    """
+    Find the two closest atoms to position (pos_x, pos_y) such that
+    the angle atom1-pos-atom2 is at least 160 degrees.
+    Returns (atom1_idx, atom2_idx) or None if no valid pair found.
+    """
+    if mol.GetNumAtoms() < 2:
+        return None
+
+    conf = mol.GetConformer()
+
+    # Calculate distances from all atoms to the cursor position
+    distances = []
+    for atom in mol.GetAtoms():
+        atom_pos = conf.GetAtomPosition(atom.GetIdx())
+        dx = atom_pos.x - pos_x
+        dy = atom_pos.y - pos_y
+        dist = math.sqrt(dx*dx + dy*dy)
+        distances.append((dist, atom.GetIdx(), atom_pos.x, atom_pos.y))
+
+    # Sort by distance
+    distances.sort()
+
+    # Check pairs of closest atoms
+    for i in range(len(distances)):
+        for j in range(i + 1, len(distances)):
+            _, idx1, x1, y1 = distances[i]
+            _, idx2, x2, y2 = distances[j]
+
+            # Calculate vectors from cursor position to each atom
+            v1_x = x1 - pos_x
+            v1_y = y1 - pos_y
+            v2_x = x2 - pos_x
+            v2_y = y2 - pos_y
+
+            # Calculate lengths
+            len1 = math.sqrt(v1_x*v1_x + v1_y*v1_y)
+            len2 = math.sqrt(v2_x*v2_x + v2_y*v2_y)
+
+            if len1 == 0 or len2 == 0:
+                continue
+
+            # Calculate angle using dot product
+            dot = v1_x*v2_x + v1_y*v2_y
+            cos_angle = dot / (len1 * len2)
+            angle_deg = math.degrees(math.acos(max(-1.0, min(1.0, cos_angle))))
+
+            # If angle is at least 160 degrees, we found our pair
+            if angle_deg >= 160:
+                return (idx1, idx2)
+
+    return None
+
+
+def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
+    """
+    Modify or create a bond between two atoms.
+    bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
+    """
+    bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
+
+    if bond_order == 0:
+        # Delete bond if it exists
+        if bond is not None:
+            mol.RemoveBond(atom1_idx, atom2_idx)
+    else:
+        # Map bond order to BondType
+        bond_type_map = {
+            1: Chem.BondType.SINGLE,
+            2: Chem.BondType.DOUBLE,
+            3: Chem.BondType.TRIPLE
+        }
+        bond_type = bond_type_map[bond_order]
+
+        if bond is not None:
+            # Modify existing bond
+            bond.SetBondType(bond_type)
+        else:
+            # Add new bond
+            mol.AddBond(atom1_idx, atom2_idx, bond_type)
+
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule."""
     conf = mol.GetConformer(0)
@@ -197,7 +281,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s: SMILES | S: toggle SMILES | i: insert | q: quit"
+        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -291,6 +375,21 @@ def main_loop(stdscr, initial_smiles=None):
                     except Exception:
                         # Invalid element symbol or other error
                         pass
+
+        # Add/modify/delete bond
+        elif key in [ord('0'), ord('1'), ord('2'), ord('3')]:
+            if mol is not None and box is not None and scale is not None:
+                bond_order = int(chr(key))
+                # Convert cursor position to molecule coordinates
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+
+                # Find the two atoms that should be bonded
+                atom_pair = find_bond_atoms(mol, mol_x, mol_y)
+
+                if atom_pair is not None:
+                    atom1_idx, atom2_idx = atom_pair
+                    modify_bond(mol, atom1_idx, atom2_idx, bond_order)
+                    need_redraw = True
 
         # Quit
         elif key == ord('q'):
