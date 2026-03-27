@@ -7,7 +7,7 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
-  x          - Delete atom at cursor position
+  x          - Delete atom or bond at cursor position
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
   Ctrl-L     - Cleanup/regenerate coordinates
   q          - Quit
@@ -343,6 +343,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Load initial molecule if provided
     if initial_smiles:
         m = Chem.MolFromSmiles(initial_smiles)
+        Chem.Kekulize(mol)
         if m is not None:
             mol = Chem.RWMol(m)
             AllChem.Compute2DCoords(mol)
@@ -351,7 +352,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | x: del | ^L: clean | 0-3: bond | q: quit"
+        "h/j/k/l: move | s/S: SMILES | i: insert | x: del | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -449,9 +450,10 @@ def main_loop(stdscr, initial_smiles=None):
                         # Invalid element symbol or other error
                         pass
 
-        # Delete atom at cursor position
+        # Delete atom or bond at cursor position
         elif key == ord('x'):
             if mol is not None and box is not None and scale is not None:
+                # First try to find an atom at cursor
                 atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
                 if atom_idx is not None:
                     try:
@@ -460,6 +462,14 @@ def main_loop(stdscr, initial_smiles=None):
                     except Exception:
                         # Error removing atom
                         pass
+                else:
+                    # No atom found, try to delete a bond instead
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                    atom_pair = find_bond_atoms(mol, mol_x, mol_y)
+                    if atom_pair is not None:
+                        atom1_idx, atom2_idx = atom_pair
+                        if modify_bond(mol, atom1_idx, atom2_idx, 0):
+                            need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == 12:  # Ctrl-L
