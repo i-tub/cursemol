@@ -6,6 +6,7 @@ Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
   x          - Place an 'x' at current cursor position
   c          - Show coordinates of all x'es
+  s          - Enter a SMILES string
   q          - Quit
 """
 
@@ -26,10 +27,13 @@ def main(stdscr):
     # Dictionary to store positions of x'es: {(y, x): 'x'}
     x_positions = {}
 
+    # SMILES string storage
+    smiles = ""
+
     # Instructions
     instructions = [
         "Cursemol - Place markers on screen",
-        "h/j/k/l: move | x: place X | c: show coords | q: quit"
+        "h/j/k/l: move | x: place X | c: show coords | s: SMILES | q: quit"
     ]
 
     while True:
@@ -93,6 +97,23 @@ def main(stdscr):
             stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
             stdscr.refresh()
             stdscr.getch()
+
+        # Enter SMILES string
+        elif key == ord('s'):
+            # Show prompt at the bottom
+            stdscr.addstr(max_y - 1, 0, "Enter SMILES: ")
+            stdscr.clrtoeol()
+            stdscr.refresh()
+
+            # Enable echoing and get string input
+            curses.echo()
+            try:
+                smiles_bytes = stdscr.getstr(max_y - 1, 14)
+                smiles = smiles_bytes.decode('utf-8')
+            except Exception:
+                smiles = ""
+            finally:
+                curses.noecho()
 
         # Quit
         elif key == ord('q'):
