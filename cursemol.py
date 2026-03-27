@@ -302,7 +302,7 @@ def main_loop(stdscr, initial_smiles=None):
 
     # SMILES string storage
     smiles = initial_smiles or ""
-    mol = None
+    mol = Chem.RWMol()
     box = None
     scale = None
     y_offset = 0
@@ -432,7 +432,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Quit
         elif key == ord('q'):
-            break
+            return Chem.MolToSmiles(mol)
 
 
 def main():
@@ -443,7 +443,7 @@ def main():
     parser.add_argument('smiles', nargs='?', help='Initial SMILES string to display')
     args = parser.parse_args()
 
-    curses.wrapper(main_loop, args.smiles)
+    print(curses.wrapper(main_loop, args.smiles))
 
 
 if __name__ == "__main__":
