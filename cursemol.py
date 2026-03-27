@@ -155,26 +155,33 @@ def main(stdscr):
         "h/j/k/l: move | x: place X | c: show coords | s: SMILES | q: quit"
     ]
 
+    # Track when we need to redraw the entire screen
+    need_redraw = True
+
     while True:
-        stdscr.clear()
+        # Only redraw everything when necessary
+        if need_redraw:
+            stdscr.clear()
 
-        # Draw molecule if present
-        if mol is not None:
-            draw_mol(stdscr, mol, max_x)
+            # Draw molecule if present
+            if mol is not None:
+                draw_mol(stdscr, mol, max_x)
 
-        # Draw instructions at the bottom
-        for i, line in enumerate(instructions):
-            try:
-                stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x-1])
-            except curses.error:
-                pass
+            # Draw instructions at the bottom
+            for i, line in enumerate(instructions):
+                try:
+                    stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x-1])
+                except curses.error:
+                    pass
 
-        # Draw all placed x'es
-        for (y, x), char in x_positions.items():
-            try:
-                stdscr.addstr(y, x, char)
-            except curses.error:
-                pass
+            # Draw all placed x'es
+            for (y, x), char in x_positions.items():
+                try:
+                    stdscr.addstr(y, x, char)
+                except curses.error:
+                    pass
+
+            need_redraw = False
 
         # Move cursor to current position
         try:
@@ -200,10 +207,15 @@ def main(stdscr):
         # Place an 'x' at current position
         elif key == ord('x'):
             x_positions[(cursor_y, cursor_x)] = 'X'
+            try:
+                stdscr.addstr(cursor_y, cursor_x, 'X')
+            except curses.error:
+                pass
 
         # Show coordinates of all x'es
         elif key == ord('c'):
             show_coordinates(stdscr, x_positions, max_y)
+            need_redraw = True
 
         # Enter SMILES string
         elif key == ord('s'):
@@ -212,6 +224,7 @@ def main(stdscr):
                 mol = Chem.MolFromSmiles(smiles)
                 if mol is not None:
                     AllChem.Compute2DCoords(mol)
+                    need_redraw = True
 
         # Quit
         elif key == ord('q'):
