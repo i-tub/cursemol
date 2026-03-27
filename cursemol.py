@@ -5,6 +5,7 @@ Cursemol - A simple curses-based program for displaying molecules.
 Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
   s          - Enter a SMILES string
+  S          - Toggle SMILES display
   i          - Insert atom at cursor position
   q          - Quit
 """
@@ -183,6 +184,7 @@ def main_loop(stdscr, initial_smiles=None):
     box = None
     scale = None
     y_offset = 0
+    show_smiles = False
 
     # Load initial molecule if provided
     if initial_smiles:
@@ -195,7 +197,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s: SMILES | i: insert atom | q: quit"
+        "h/j/k/l: move | s: SMILES | S: toggle SMILES | i: insert | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -209,6 +211,19 @@ def main_loop(stdscr, initial_smiles=None):
             # Draw molecule if present
             if mol is not None and box is not None and scale is not None:
                 draw_mol(stdscr, mol, box, scale, max_y, y_offset)
+
+            # Draw SMILES at the top if enabled (after molecule so it's on top)
+            if show_smiles and mol is not None:
+                current_smiles = Chem.MolToSmiles(mol)
+                # Wrap SMILES to screen width
+                row = 0
+                for i in range(0, len(current_smiles), max_x - 1):
+                    chunk = current_smiles[i:i + max_x - 1]
+                    try:
+                        stdscr.addstr(row, 0, chunk)
+                        row += 1
+                    except curses.error:
+                        break
 
             # Draw instructions at the bottom
             for i, line in enumerate(instructions):
@@ -250,6 +265,11 @@ def main_loop(stdscr, initial_smiles=None):
                     AllChem.Compute2DCoords(mol)
                     box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
                     need_redraw = True
+
+        # Toggle SMILES display
+        elif key == ord('S'):
+            show_smiles = not show_smiles
+            need_redraw = True
 
         # Insert atom at cursor position
         elif key == ord('i'):
