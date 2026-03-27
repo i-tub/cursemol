@@ -109,7 +109,7 @@ def draw_mol(stdscr, mol, max_x):
         except curses.error:
             pass
 
-def main(stdscr, initial_smiles=None):
+def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     stdscr.clear()
@@ -192,9 +192,13 @@ def main(stdscr, initial_smiles=None):
             break
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='Display molecules in the terminal')
     parser.add_argument('smiles', nargs='?', help='Initial SMILES string to display')
     args = parser.parse_args()
 
-    curses.wrapper(main, args.smiles)
+    curses.wrapper(main_loop, args.smiles)
+
+
+if __name__ == "__main__":
+    main()
