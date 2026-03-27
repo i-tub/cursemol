@@ -31,10 +31,10 @@ def get_box(conf):
     return (xyz.min(axis=0), xyz.max(axis=0))
 
 
-def int_coords_for_atom(atom, box, scale, conf):
+def int_coords_for_atom(atom, box, scale, conf, y_offset=0):
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - box[0][0]) * scale[0])
-    y = PADDING + int((pos.y - box[0][1]) * scale[1])
+    y = PADDING + y_offset + int((pos.y - box[0][1]) * scale[1])
     return x, y
 
 
@@ -100,7 +100,7 @@ def enter_element(stdscr, max_y):
     return symbol
 
 
-def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y):
+def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Screen array has (max_y - 2) rows, displayed reversed
     rows = max_y - 2
@@ -110,12 +110,13 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y):
     screen_y = rows - 1 - cursor_y
 
     # Reverse the coordinate transformation from int_coords_for_atom
+    # Account for y_offset
     mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
-    mol_y = (screen_y - PADDING) / scale[1] + box[0][1]
+    mol_y = (screen_y - PADDING - y_offset) / scale[1] + box[0][1]
 
     return mol_x, mol_y
 
-def calculate_box_and_scale(mol, max_x):
+def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule."""
     conf = mol.GetConformer(0)
     box = get_box(conf)
@@ -125,10 +126,15 @@ def calculate_box_and_scale(mol, max_x):
     yscale = xscale*ASPECT_RATIO
     scale = (xscale, yscale)
 
-    return box, scale
+    # Calculate vertical offset to center the molecule
+    mol_height = int((ymax-ymin) * yscale + 2*PADDING)
+    available_height = max_y - 2  # Leave room for instructions
+    y_offset = max(0, (available_height - mol_height) // 2)
+
+    return box, scale, y_offset
 
 
-def draw_mol(stdscr, mol, box, scale, max_y):
+def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     """Draw the molecule using ASCII art using the given box and scale."""
     Chem.Kekulize(mol)
     conf = mol.GetConformer(0)
@@ -142,12 +148,12 @@ def draw_mol(stdscr, mol, box, scale, max_y):
     screen = [[' '] * cols for i in range(rows)]
 
     for bond in mol.GetBonds():
-        x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf)
-        x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf)
+        x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf, y_offset)
+        x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf, y_offset)
         draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2, y2)
 
     for atom in mol.GetAtoms():
-        x, y = int_coords_for_atom(atom, box, scale, conf)
+        x, y = int_coords_for_atom(atom, box, scale, conf, y_offset)
         sym = atom.GetSymbol()
         for i, c in enumerate(sym):
             # Bounds check to avoid IndexError
@@ -176,6 +182,7 @@ def main_loop(stdscr, initial_smiles=None):
     mol = None
     box = None
     scale = None
+    y_offset = 0
 
     # Load initial molecule if provided
     if initial_smiles:
@@ -183,7 +190,7 @@ def main_loop(stdscr, initial_smiles=None):
         if m is not None:
             mol = Chem.RWMol(m)
             AllChem.Compute2DCoords(mol)
-            box, scale = calculate_box_and_scale(mol, max_x)
+            box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
 
     # Instructions
     instructions = [
@@ -201,7 +208,7 @@ def main_loop(stdscr, initial_smiles=None):
 
             # Draw molecule if present
             if mol is not None and box is not None and scale is not None:
-                draw_mol(stdscr, mol, box, scale, max_y)
+                draw_mol(stdscr, mol, box, scale, max_y, y_offset)
 
             # Draw instructions at the bottom
             for i, line in enumerate(instructions):
@@ -241,7 +248,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if m is not None:
                     mol = Chem.RWMol(m)
                     AllChem.Compute2DCoords(mol)
-                    box, scale = calculate_box_and_scale(mol, max_x)
+                    box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
                     need_redraw = True
 
         # Insert atom at cursor position
@@ -254,7 +261,7 @@ def main_loop(stdscr, initial_smiles=None):
                         atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
                         # Convert cursor position to molecule coordinates
-                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y)
+                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
 
                         # Set atom position in conformer
                         conf = mol.GetConformer()
