@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Cursemol - A simple curses-based program for placing markers on screen.
+Cursemol - A simple curses-based program for displaying molecules.
 
 Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
-  x          - Place an 'x' at current cursor position
-  c          - Show coordinates of all x'es
   s          - Enter a SMILES string
   q          - Quit
 """
 
+import argparse
 import curses
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -58,27 +57,6 @@ def draw_line(screen, char, x1, y1, x2, y2):
             screen[x][y] = char
         else:
             screen[y][x] = char
-
-
-def show_coordinates(stdscr, x_positions, max_y):
-    """Display coordinates of all X markers."""
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Coordinates of all X markers:")
-    stdscr.addstr(1, 0, "-" * 40)
-
-    if x_positions:
-        for i, (y, x) in enumerate(sorted(x_positions.keys()), start=2):
-            coord_str = f"X #{i-1}: (y={y}, x={x})"
-            try:
-                stdscr.addstr(i, 0, coord_str)
-            except curses.error:
-                break
-    else:
-        stdscr.addstr(2, 0, "No X markers placed yet.")
-
-    stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
-    stdscr.refresh()
-    stdscr.getch()
 
 
 def enter_smiles(stdscr, max_y):
@@ -131,7 +109,7 @@ def draw_mol(stdscr, mol, max_x):
         except curses.error:
             pass
 
-def main(stdscr):
+def main(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     stdscr.clear()
@@ -142,17 +120,20 @@ def main(stdscr):
     # Starting cursor position
     cursor_y, cursor_x = 0, 0
 
-    # Dictionary to store positions of x'es: {(y, x): 'x'}
-    x_positions = {}
-
     # SMILES string storage
-    smiles = ""
+    smiles = initial_smiles or ""
     mol = None
+
+    # Load initial molecule if provided
+    if initial_smiles:
+        mol = Chem.MolFromSmiles(initial_smiles)
+        if mol is not None:
+            AllChem.Compute2DCoords(mol)
 
     # Instructions
     instructions = [
-        "Cursemol - Place markers on screen",
-        "h/j/k/l: move | x: place X | c: show coords | s: SMILES | q: quit"
+        "Cursemol - Display molecules",
+        "h/j/k/l: move | s: SMILES | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -171,13 +152,6 @@ def main(stdscr):
             for i, line in enumerate(instructions):
                 try:
                     stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x-1])
-                except curses.error:
-                    pass
-
-            # Draw all placed x'es
-            for (y, x), char in x_positions.items():
-                try:
-                    stdscr.addstr(y, x, char)
                 except curses.error:
                     pass
 
@@ -204,19 +178,6 @@ def main(stdscr):
         elif key == ord('l'):  # right
             cursor_x = min(max_x - 1, cursor_x + 1)
 
-        # Place an 'x' at current position
-        elif key == ord('x'):
-            x_positions[(cursor_y, cursor_x)] = 'X'
-            try:
-                stdscr.addstr(cursor_y, cursor_x, 'X')
-            except curses.error:
-                pass
-
-        # Show coordinates of all x'es
-        elif key == ord('c'):
-            show_coordinates(stdscr, x_positions, max_y)
-            need_redraw = True
-
         # Enter SMILES string
         elif key == ord('s'):
             smiles = enter_smiles(stdscr, max_y)
@@ -232,4 +193,8 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
-    curses.wrapper(main)
+    parser = argparse.ArgumentParser(description='Display molecules in the terminal')
+    parser.add_argument('smiles', nargs='?', help='Initial SMILES string to display')
+    args = parser.parse_args()
+
+    curses.wrapper(main, args.smiles)
