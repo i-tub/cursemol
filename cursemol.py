@@ -53,6 +53,8 @@ def enter_smiles(stdscr, max_y):
 
     return smiles
 
+def draw_mol(stdscr, mol):
+    """Draw the molecule using ASCII art"""
 
 def main(stdscr):
     # Initialize curses
@@ -126,6 +128,9 @@ def main(stdscr):
         # Enter SMILES string
         elif key == ord('s'):
             smiles = enter_smiles(stdscr, max_y)
+            mol = Chem.MolFromSmiles(smiles)
+            AllChem.Compute2DCoords(mol)
+            draw_mol(stdscr, mol)
 
         # Quit
         elif key == ord('q'):
