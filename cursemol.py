@@ -15,6 +15,7 @@ import argparse
 import curses
 import math
 from rdkit import Chem
+from rdkit import RDLogger
 from rdkit.Chem import AllChem
 
 
@@ -435,6 +436,9 @@ def main_loop(stdscr, initial_smiles=None):
 
 
 def main():
+    logger = RDLogger.logger()
+    logger.setLevel(RDLogger.CRITICAL)
+
     parser = argparse.ArgumentParser(description='Display molecules in the terminal')
     parser.add_argument('smiles', nargs='?', help='Initial SMILES string to display')
     args = parser.parse_args()
