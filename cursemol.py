@@ -13,6 +13,47 @@ Controls:
 import curses
 
 
+def show_coordinates(stdscr, x_positions, max_y):
+    """Display coordinates of all X markers."""
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Coordinates of all X markers:")
+    stdscr.addstr(1, 0, "-" * 40)
+
+    if x_positions:
+        for i, (y, x) in enumerate(sorted(x_positions.keys()), start=2):
+            coord_str = f"X #{i-1}: (y={y}, x={x})"
+            try:
+                stdscr.addstr(i, 0, coord_str)
+            except curses.error:
+                break
+    else:
+        stdscr.addstr(2, 0, "No X markers placed yet.")
+
+    stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
+    stdscr.refresh()
+    stdscr.getch()
+
+
+def enter_smiles(stdscr, max_y):
+    """Prompt user to enter a SMILES string and return it."""
+    # Show prompt at the bottom
+    stdscr.addstr(max_y - 1, 0, "Enter SMILES: ")
+    stdscr.clrtoeol()
+    stdscr.refresh()
+
+    # Enable echoing and get string input
+    curses.echo()
+    try:
+        smiles_bytes = stdscr.getstr(max_y - 1, 14)
+        smiles = smiles_bytes.decode('utf-8')
+    except Exception:
+        smiles = ""
+    finally:
+        curses.noecho()
+
+    return smiles
+
+
 def main(stdscr):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
@@ -80,40 +121,11 @@ def main(stdscr):
 
         # Show coordinates of all x'es
         elif key == ord('c'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Coordinates of all X markers:")
-            stdscr.addstr(1, 0, "-" * 40)
-
-            if x_positions:
-                for i, (y, x) in enumerate(sorted(x_positions.keys()), start=2):
-                    coord_str = f"X #{i-1}: (y={y}, x={x})"
-                    try:
-                        stdscr.addstr(i, 0, coord_str)
-                    except curses.error:
-                        break
-            else:
-                stdscr.addstr(2, 0, "No X markers placed yet.")
-
-            stdscr.addstr(max_y - 1, 0, "Press any key to continue...")
-            stdscr.refresh()
-            stdscr.getch()
+            show_coordinates(stdscr, x_positions, max_y)
 
         # Enter SMILES string
         elif key == ord('s'):
-            # Show prompt at the bottom
-            stdscr.addstr(max_y - 1, 0, "Enter SMILES: ")
-            stdscr.clrtoeol()
-            stdscr.refresh()
-
-            # Enable echoing and get string input
-            curses.echo()
-            try:
-                smiles_bytes = stdscr.getstr(max_y - 1, 14)
-                smiles = smiles_bytes.decode('utf-8')
-            except Exception:
-                smiles = ""
-            finally:
-                curses.noecho()
+            smiles = enter_smiles(stdscr, max_y)
 
         # Quit
         elif key == ord('q'):
