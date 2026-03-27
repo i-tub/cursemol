@@ -178,28 +178,54 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
     """
     Modify or create a bond between two atoms.
     bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
+    Returns True if successful, False if the modification would create an invalid molecule.
     """
     bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
 
-    if bond_order == 0:
-        # Delete bond if it exists
-        if bond is not None:
-            mol.RemoveBond(atom1_idx, atom2_idx)
-    else:
-        # Map bond order to BondType
-        bond_type_map = {
-            1: Chem.BondType.SINGLE,
-            2: Chem.BondType.DOUBLE,
-            3: Chem.BondType.TRIPLE
-        }
-        bond_type = bond_type_map[bond_order]
+    # Remember the old state in case we need to revert
+    old_bond_type = bond.GetBondType() if bond is not None else None
 
-        if bond is not None:
-            # Modify existing bond
-            bond.SetBondType(bond_type)
+    try:
+        if bond_order == 0:
+            # Delete bond if it exists
+            if bond is not None:
+                mol.RemoveBond(atom1_idx, atom2_idx)
         else:
-            # Add new bond
-            mol.AddBond(atom1_idx, atom2_idx, bond_type)
+            # Map bond order to BondType
+            bond_type_map = {
+                1: Chem.BondType.SINGLE,
+                2: Chem.BondType.DOUBLE,
+                3: Chem.BondType.TRIPLE
+            }
+            bond_type = bond_type_map[bond_order]
+
+            if bond is not None:
+                # Modify existing bond
+                bond.SetBondType(bond_type)
+            else:
+                # Add new bond
+                mol.AddBond(atom1_idx, atom2_idx, bond_type)
+
+        # Test if the molecule can be kekulized
+        mol_copy = Chem.RWMol(mol)
+        Chem.Kekulize(mol_copy)
+        return True
+
+    except Exception:
+        # Revert the change if kekulization fails
+        if bond_order == 0:
+            # We deleted the bond, add it back
+            if old_bond_type is not None:
+                mol.AddBond(atom1_idx, atom2_idx, old_bond_type)
+        else:
+            bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
+            if old_bond_type is not None:
+                # We modified an existing bond, restore it
+                bond.SetBondType(old_bond_type)
+            else:
+                # We added a new bond, remove it
+                mol.RemoveBond(atom1_idx, atom2_idx)
+        return False
 
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule."""
@@ -221,7 +247,12 @@ def calculate_box_and_scale(mol, max_x, max_y):
 
 def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     """Draw the molecule using ASCII art using the given box and scale."""
-    Chem.Kekulize(mol)
+    try:
+        Chem.Kekulize(mol)
+    except Exception:
+        # If kekulization fails, skip drawing bonds (just show atoms)
+        pass
+
     conf = mol.GetConformer(0)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = box
 
@@ -232,10 +263,16 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
 
     screen = [[' '] * cols for i in range(rows)]
 
-    for bond in mol.GetBonds():
-        x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf, y_offset)
-        x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf, y_offset)
-        draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2, y2)
+    try:
+        for bond in mol.GetBonds():
+            x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf, y_offset)
+            x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf, y_offset)
+            # Only draw if bond type is in our dictionary
+            if bond.GetBondType() in BOND_CHARS:
+                draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2, y2)
+    except Exception:
+        # If there's any issue drawing bonds, continue to draw atoms
+        pass
 
     for atom in mol.GetAtoms():
         x, y = int_coords_for_atom(atom, box, scale, conf, y_offset)
@@ -388,8 +425,9 @@ def main_loop(stdscr, initial_smiles=None):
 
                 if atom_pair is not None:
                     atom1_idx, atom2_idx = atom_pair
-                    modify_bond(mol, atom1_idx, atom2_idx, bond_order)
-                    need_redraw = True
+                    # Only redraw if modification was successful
+                    if modify_bond(mol, atom1_idx, atom2_idx, bond_order):
+                        need_redraw = True
 
         # Quit
         elif key == ord('q'):
