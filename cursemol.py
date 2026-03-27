@@ -18,7 +18,6 @@ from rdkit import Chem
 from rdkit import RDLogger
 from rdkit.Chem import AllChem
 
-
 MAX_SCALE = 10.0  # columns per angstrom
 ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
@@ -44,20 +43,20 @@ def int_coords_for_atom(atom, box, scale, conf, y_offset=0):
 
 def draw_line(screen, char, x1, y1, x2, y2):
     vertical = False
-    if abs(x2-x1) < abs(y2-y1):
+    if abs(x2 - x1) < abs(y2 - y1):
         x1, y1 = y1, x1
         x2, y2 = y2, x2
         vertical = True
     try:
-        slope = 1.0*(y2-y1)/(x2-x1)
+        slope = 1.0 * (y2 - y1) / (x2 - x1)
     except ZeroDivisionError:
         return
 
     if x1 > x2:
         x1, x2 = x2, x1
         y1, y2 = y2, y1
-    for x in range(x1+1, x2):
-        y = int(round(y1 + slope * (x-x1)))
+    for x in range(x1 + 1, x2):
+        y = int(round(y1 + slope * (x - x1)))
         if vertical:
             screen[x][y] = char
         else:
@@ -138,7 +137,7 @@ def find_bond_atoms(mol, pos_x, pos_y):
         atom_pos = conf.GetAtomPosition(atom.GetIdx())
         dx = atom_pos.x - pos_x
         dy = atom_pos.y - pos_y
-        dist = math.sqrt(dx*dx + dy*dy)
+        dist = math.sqrt(dx * dx + dy * dy)
         distances.append((dist, atom.GetIdx(), atom_pos.x, atom_pos.y))
 
     # Sort by distance
@@ -157,14 +156,14 @@ def find_bond_atoms(mol, pos_x, pos_y):
             v2_y = y2 - pos_y
 
             # Calculate lengths
-            len1 = math.sqrt(v1_x*v1_x + v1_y*v1_y)
-            len2 = math.sqrt(v2_x*v2_x + v2_y*v2_y)
+            len1 = math.sqrt(v1_x * v1_x + v1_y * v1_y)
+            len2 = math.sqrt(v2_x * v2_x + v2_y * v2_y)
 
             if len1 == 0 or len2 == 0:
                 continue
 
             # Calculate angle using dot product
-            dot = v1_x*v2_x + v1_y*v2_y
+            dot = v1_x * v2_x + v1_y * v2_y
             cos_angle = dot / (len1 * len2)
             angle_deg = math.degrees(math.acos(max(-1.0, min(1.0, cos_angle))))
 
@@ -228,18 +227,19 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
                 mol.RemoveBond(atom1_idx, atom2_idx)
         return False
 
+
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule."""
     conf = mol.GetConformer(0)
     box = get_box(conf)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = box
 
-    xscale = min((max_x-PADDING*2)/(xmax-xmin), MAX_SCALE)
-    yscale = xscale*ASPECT_RATIO
+    xscale = min((max_x - PADDING * 2) / (xmax - xmin), MAX_SCALE)
+    yscale = xscale * ASPECT_RATIO
     scale = (xscale, yscale)
 
     # Calculate vertical offset to center the molecule
-    mol_height = int((ymax-ymin) * yscale + 2*PADDING)
+    mol_height = int((ymax - ymin) * yscale + 2 * PADDING)
     available_height = max_y - 2  # Leave room for instructions
     y_offset = max(0, (available_height - mol_height) // 2)
 
@@ -266,11 +266,14 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
 
     try:
         for bond in mol.GetBonds():
-            x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf, y_offset)
-            x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf, y_offset)
+            x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf,
+                                         y_offset)
+            x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf,
+                                         y_offset)
             # Only draw if bond type is in our dictionary
             if bond.GetBondType() in BOND_CHARS:
-                draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2, y2)
+                draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
+                          y2)
     except Exception:
         # If there's any issue drawing bonds, continue to draw atoms
         pass
@@ -280,14 +283,15 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
         sym = atom.GetSymbol()
         for i, c in enumerate(sym):
             # Bounds check to avoid IndexError
-            if 0 <= y < rows and 0 <= x+i < cols:
-                screen[y][x+i] = c
+            if 0 <= y < rows and 0 <= x + i < cols:
+                screen[y][x + i] = c
 
     for i, line in enumerate(reversed(screen)):
         try:
             stdscr.addstr(i, 0, ''.join(line))
         except curses.error:
             pass
+
 
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
@@ -350,7 +354,8 @@ def main_loop(stdscr, initial_smiles=None):
             # Draw instructions at the bottom
             for i, line in enumerate(instructions):
                 try:
-                    stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x-1])
+                    stdscr.addstr(max_y - len(instructions) + i, 0,
+                                  line[:max_x - 1])
                 except curses.error:
                     pass
 
@@ -385,7 +390,8 @@ def main_loop(stdscr, initial_smiles=None):
                 if m is not None:
                     mol = Chem.RWMol(m)
                     AllChem.Compute2DCoords(mol)
-                    box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+                    box, scale, y_offset = calculate_box_and_scale(
+                        mol, max_x, max_y)
                     need_redraw = True
 
         # Toggle SMILES display
@@ -403,7 +409,8 @@ def main_loop(stdscr, initial_smiles=None):
                         atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
                         # Convert cursor position to molecule coordinates
-                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                        mol_x, mol_y = screen_to_mol_coords(
+                            cursor_x, cursor_y, box, scale, max_y, y_offset)
 
                         # Set atom position in conformer
                         conf = mol.GetConformer()
@@ -419,7 +426,8 @@ def main_loop(stdscr, initial_smiles=None):
             if mol is not None and box is not None and scale is not None:
                 bond_order = int(chr(key))
                 # Convert cursor position to molecule coordinates
-                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
+                                                    scale, max_y, y_offset)
 
                 # Find the two atoms that should be bonded
                 atom_pair = find_bond_atoms(mol, mol_x, mol_y)
@@ -439,8 +447,11 @@ def main():
     logger = RDLogger.logger()
     logger.setLevel(RDLogger.CRITICAL)
 
-    parser = argparse.ArgumentParser(description='Display molecules in the terminal')
-    parser.add_argument('smiles', nargs='?', help='Initial SMILES string to display')
+    parser = argparse.ArgumentParser(
+        description='Display molecules in the terminal')
+    parser.add_argument('smiles',
+                        nargs='?',
+                        help='Initial SMILES string to display')
     args = parser.parse_args()
 
     print(curses.wrapper(main_loop, args.smiles))
