@@ -9,6 +9,7 @@ Controls:
   i          - Insert atom at cursor position
   x          - Delete atom at cursor position
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
+  Ctrl-L     - Cleanup/regenerate coordinates
   q          - Quit
 """
 
@@ -350,7 +351,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | x: delete | 0-3: bond | q: quit"
+        "h/j/k/l: move | s: SMILES | S: toggle | i: insert | x: del | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -459,6 +460,17 @@ def main_loop(stdscr, initial_smiles=None):
                     except Exception:
                         # Error removing atom
                         pass
+
+        # Cleanup/regenerate coordinates (Ctrl-L)
+        elif key == 12:  # Ctrl-L
+            if mol is not None and mol.GetNumAtoms() > 0:
+                try:
+                    AllChem.Compute2DCoords(mol)
+                    box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+                    need_redraw = True
+                except Exception:
+                    # Error regenerating coordinates
+                    pass
 
         # Add/modify/delete bond
         elif key in [ord('0'), ord('1'), ord('2'), ord('3')]:
