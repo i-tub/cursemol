@@ -7,6 +7,7 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
+  C, N, O    - Insert carbon/nitrogen/oxygen atom (shortcuts)
   x          - Delete atom or bond at cursor position
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
   Ctrl-L     - Cleanup/regenerate coordinates
@@ -236,7 +237,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
 
         # Test if the molecule can be kekulized
         mol_copy = Chem.RWMol(mol)
-        Chem.Kekulize(mol_copy)
+        Chem.Kekulize(mol_copy, True)
         return True
 
     except Exception:
@@ -277,7 +278,7 @@ def calculate_box_and_scale(mol, max_x, max_y):
 def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     """Draw the molecule using ASCII art using the given box and scale."""
     try:
-        Chem.Kekulize(mol)
+        Chem.Kekulize(mol, True)
     except Exception:
         # If kekulization fails, skip drawing bonds (just show atoms)
         pass
@@ -352,7 +353,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s/S: SMILES | i: insert | x: del | ^L: clean | 0-3: bond | q: quit"
+        "h/j/k/l: move | s/S: SMILES | i/C/N/O: insert | x: del | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -450,6 +451,27 @@ def main_loop(stdscr, initial_smiles=None):
                         # Invalid element symbol or other error
                         pass
 
+        # Insert common atoms (C, N, O) - shortcuts
+        elif key in [ord('C'), ord('N'), ord('O')]:
+            if mol is not None and box is not None and scale is not None:
+                symbol = chr(key)
+                try:
+                    # Add atom to molecule
+                    atom_idx = mol.AddAtom(Chem.Atom(symbol))
+
+                    # Convert cursor position to molecule coordinates
+                    mol_x, mol_y = screen_to_mol_coords(
+                        cursor_x, cursor_y, box, scale, max_y, y_offset)
+
+                    # Set atom position in conformer
+                    conf = mol.GetConformer()
+                    conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+
+                    need_redraw = True
+                except Exception:
+                    # Invalid element symbol or other error
+                    pass
+
         # Delete atom or bond at cursor position
         elif key == ord('x'):
             if mol is not None and box is not None and scale is not None:
@@ -501,6 +523,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Quit
         elif key == ord('q'):
+            Chem.SanitizeMol(mol)
             return Chem.MolToSmiles(mol)
 
 
