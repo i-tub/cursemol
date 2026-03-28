@@ -249,28 +249,35 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
     """
     Modify or create a bond between two atoms.
     bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
-    Returns True if successful, False if the modification would create an invalid molecule.
+    Returns True if successful, False if no change was made or modification would create an invalid molecule.
     """
     bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
 
     # Remember the old state in case we need to revert
     old_bond_type = bond.GetBondType() if bond is not None else None
 
+    # Map bond order to BondType
+    bond_type_map = {
+        1: Chem.BondType.SINGLE,
+        2: Chem.BondType.DOUBLE,
+        3: Chem.BondType.TRIPLE
+    }
+
     try:
         if bond_order == 0:
             # Delete bond if it exists
             if bond is not None:
                 mol.RemoveBond(atom1_idx, atom2_idx)
+            else:
+                # Bond doesn't exist, nothing to delete
+                return False
         else:
-            # Map bond order to BondType
-            bond_type_map = {
-                1: Chem.BondType.SINGLE,
-                2: Chem.BondType.DOUBLE,
-                3: Chem.BondType.TRIPLE
-            }
             bond_type = bond_type_map[bond_order]
 
             if bond is not None:
+                # Check if bond already has this type
+                if bond.GetBondType() == bond_type:
+                    return False  # No change needed
                 # Modify existing bond
                 bond.SetBondType(bond_type)
             else:
@@ -529,6 +536,12 @@ class UndoHistory:
             return True
         return False
 
+    def save_to_history(self):
+        """Truncate future history and save current state."""
+        self._history = self._history[:self._index + 1]
+        self._history.append(save_state(self.mol, self.box, self.scale, self.y_offset))
+        self._index = len(self._history) - 1
+
 
 def insert_or_modify_atom(stdscr,
                           mol,
@@ -557,6 +570,9 @@ def insert_or_modify_atom(stdscr,
             if atom_idx is not None:
                 # Change existing atom's symbol
                 atom = mol.GetAtomWithIdx(atom_idx)
+                # Check if atom already has this symbol
+                if atom.GetSymbol() == element_symbol:
+                    return None  # No change needed
                 atom.SetAtomicNum(
                     Chem.GetPeriodicTable().GetAtomicNumber(element_symbol))
             else:
@@ -603,10 +619,13 @@ def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
 def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
     """
     Adjust formal charge of atom at cursor position by delta.
-    Returns True if charge was adjusted, False otherwise.
+    Returns True if charge was adjusted, False if no change or no atom found.
     """
     if history.mol is None or history.box is None or history.scale is None:
         return False
+
+    if delta == 0:
+        return False  # No change requested
 
     atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
                                    history.box, history.scale,
@@ -1045,9 +1064,9 @@ def main_loop(stdscr, initial_smiles=None):
         # Add/modify/delete bond
         elif key in [ord('1'), ord('2'), ord('3')]:
             bond_order = int(chr(key))
-            with history:
-                if create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
-                    need_redraw = True
+            if create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
+                history.save_to_history()
+                need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == ord('@'):
