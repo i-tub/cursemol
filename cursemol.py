@@ -50,6 +50,18 @@ BOND_CHARS = {
     Chem.BondType.TRIPLE: '#'
 }
 
+# Color mapping for elements
+ELEMENT_COLORS = {
+    'O': 1,  # Red
+    'N': 2,  # Blue
+    'S': 3,  # Yellow
+    'P': 3,  # Yellow
+    'F': 4,  # Green
+    'Cl': 4,  # Green
+    'Br': 4,  # Green
+    'I': 4,  # Green
+}
+
 
 @dataclass
 class State:
@@ -363,42 +375,71 @@ def calculate_box_and_scale(mol, max_x, max_y):
     return box, scale, y_offset
 
 
-def draw_mol(stdscr, state, max_y):
-    """Draw the molecule using ASCII art using the given box and scale."""
-    # Nothing to draw if molecule is empty
-    if state.mol.GetNumAtoms() == 0:
-        return
+def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
+    """
+    Draw a single atom with its symbol and charge into the screen buffer.
 
-    try:
-        Chem.Kekulize(state.mol, True)
-    except Exception:
-        logging.exception("Error kekulizing molecule in draw_mol")
-        # If kekulization fails, skip drawing bonds (just show atoms)
-        pass
+    Args:
+        screen: 2D character array
+        screen_colors: 2D color/attribute array
+        atom: RDKit atom object
+        x, y: screen coordinates for the atom
+        rows, cols: screen buffer dimensions
+    """
+    sym = atom.GetSymbol()
+    color = ELEMENT_COLORS.get(sym, 0)  # Get color for this element
+    # Make all symbols bold except C
+    is_bold = sym != 'C'
 
-    conf = state.mol.GetConformer(0)
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
+    # Draw atom symbol
+    for i, c in enumerate(sym):
+        # Bounds check to avoid IndexError
+        if 0 <= y < rows and 0 <= x + i < cols:
+            screen[y][x + i] = c
+            # Store color and bold flag (color in lower bits, bold in high bit)
+            screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
 
-    # Calculate screen size - make it large enough to handle any atom position
-    # Use a generous size to accommodate atoms added outside the original box
+    # Draw formal charge if non-zero
+    charge = atom.GetFormalCharge()
+    if charge != 0:
+        # Format charge string
+        if charge == 1:
+            charge_str = "+"
+        elif charge == -1:
+            charge_str = "-"
+        elif charge > 0:
+            charge_str = f"{charge}+"
+        else:  # charge < 0
+            charge_str = f"{abs(charge)}-"
+
+        # Position: one cell above, one cell to the right of the symbol
+        # (accounts for symbol length - e.g., "Cl" vs "C")
+        charge_x = x + len(sym)
+        charge_y = y - 1
+
+        # Draw charge string with same color and bold as atom
+        for i, c in enumerate(charge_str):
+            if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
+                screen[charge_y][charge_x + i] = c
+                screen_colors[charge_y][charge_x +
+                                        i] = color | (0x100 if is_bold else 0)
+
+
+def fill_screen_buffer(state, max_y):
+    """
+    Fill screen buffer with bonds and atoms.
+    Returns (screen, screen_colors) tuple of 2D arrays.
+    """
+    # Calculate screen size
     rows = max_y - 2  # Leave room for instructions
     cols = 200  # Generous width
 
     screen = [[' '] * cols for i in range(rows)]
     screen_colors = [[0] * cols for i in range(rows)]  # 0 = default color
 
-    # Color mapping for elements
-    element_colors = {
-        'O': 1,  # Red
-        'N': 2,  # Blue
-        'S': 3,  # Yellow
-        'P': 3,  # Yellow
-        'F': 4,  # Green
-        'Cl': 4,  # Green
-        'Br': 4,  # Green
-        'I': 4,  # Green
-    }
+    conf = state.mol.GetConformer(0)
 
+    # Draw bonds
     try:
         for bond in state.mol.GetBonds():
             x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), state.box,
@@ -412,52 +453,28 @@ def draw_mol(stdscr, state, max_y):
                 draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
                           y2)
     except Exception:
-        logging.exception("Error drawing bonds in draw_mol")
+        logging.exception("Error drawing bonds")
         # If there's any issue drawing bonds, continue to draw atoms
         pass
 
+    # Draw atoms
     for atom in state.mol.GetAtoms():
         x, y = int_coords_for_atom(atom, state.box, state.scale, conf,
                                    state.y_offset, rows)
-        sym = atom.GetSymbol()
-        color = element_colors.get(sym, 0)  # Get color for this element
-        # Make all symbols bold except C
-        is_bold = sym != 'C'
+        draw_atom(screen, screen_colors, atom, x, y, rows, cols)
 
-        for i, c in enumerate(sym):
-            # Bounds check to avoid IndexError
-            if 0 <= y < rows and 0 <= x + i < cols:
-                screen[y][x + i] = c
-                # Store color and bold flag (color in lower bits, bold in high bit)
-                screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
+    return screen, screen_colors
 
-        # Draw formal charge if non-zero
-        charge = atom.GetFormalCharge()
-        if charge != 0:
-            # Format charge string
-            if charge == 1:
-                charge_str = "+"
-            elif charge == -1:
-                charge_str = "-"
-            elif charge > 0:
-                charge_str = f"{charge}+"
-            else:  # charge < 0
-                charge_str = f"{abs(charge)}-"
 
-            # Position: one cell above, one cell to the right of the symbol
-            # (accounts for symbol length - e.g., "Cl" vs "C")
-            charge_x = x + len(sym)
-            charge_y = y - 1
+def render_screen_buffer(stdscr, screen, screen_colors):
+    """
+    Render a screen buffer to the curses window.
 
-            # Draw charge string with same color and bold as atom
-            for i, c in enumerate(charge_str):
-                if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
-                    screen[charge_y][charge_x + i] = c
-                    screen_colors[charge_y][charge_x +
-                                            i] = color | (0x100
-                                                          if is_bold else 0)
-
-    # Display screen without reversing (coordinates are already correct)
+    Args:
+        stdscr: curses window
+        screen: 2D character array
+        screen_colors: 2D color/attribute array
+    """
     for i in range(len(screen)):
         for j in range(len(screen[i])):
             char = screen[i][j]
@@ -477,6 +494,26 @@ def draw_mol(stdscr, state, max_y):
                     stdscr.addstr(i, j, char)
             except curses.error:
                 pass
+
+
+def draw_mol(stdscr, state, max_y):
+    """Draw the molecule using ASCII art."""
+    # Nothing to draw if molecule is empty
+    if state.mol.GetNumAtoms() == 0:
+        return
+
+    try:
+        Chem.Kekulize(state.mol, True)
+    except Exception:
+        logging.exception("Error kekulizing molecule")
+        # If kekulization fails, skip drawing bonds (just show atoms)
+        pass
+
+    # Fill screen buffer with molecular structure
+    screen, screen_colors = fill_screen_buffer(state, max_y)
+
+    # Render buffer to curses window
+    render_screen_buffer(stdscr, screen, screen_colors)
 
 
 def get_smiles(mol):
