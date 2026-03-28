@@ -671,6 +671,20 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     return False
 
 
+def create_molecule_from_smiles(smiles, max_x, max_y):
+    """
+    Create molecule from SMILES string with 2D coordinates.
+    Returns (mol, box, scale, y_offset) if successful, None otherwise.
+    """
+    m = Chem.MolFromSmiles(smiles)
+    if m is not None:
+        mol = Chem.RWMol(m)
+        AllChem.Compute2DCoords(mol)
+        box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+        return mol, box, scale, y_offset
+    return None
+
+
 def load_smiles(stdscr, max_x, max_y):
     """
     Prompt user for SMILES string and create molecule from it.
@@ -678,12 +692,7 @@ def load_smiles(stdscr, max_x, max_y):
     """
     smiles = enter_smiles(stdscr, max_y)
     if smiles:
-        m = Chem.MolFromSmiles(smiles)
-        if m is not None:
-            mol = Chem.RWMol(m)
-            AllChem.Compute2DCoords(mol)
-            box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
-            return mol, box, scale, y_offset
+        return create_molecule_from_smiles(smiles, max_x, max_y)
     return None
 
 
@@ -925,12 +934,9 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Load initial molecule if provided
     if initial_smiles:
-        m = Chem.MolFromSmiles(initial_smiles)
-        Chem.Kekulize(mol)
-        if m is not None:
-            mol = Chem.RWMol(m)
-            AllChem.Compute2DCoords(mol)
-            box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+        result = create_molecule_from_smiles(initial_smiles, max_x, max_y)
+        if result is not None:
+            mol, box, scale, y_offset = result
     else:
         # Set up default coordinate system for empty molecule
         # Add an empty conformer
