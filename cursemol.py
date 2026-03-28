@@ -115,7 +115,7 @@ class UndoHistory:
             return True
         return False
 
-    def save_to_history(self):
+    def push(self):
         """Truncate future history and save current state."""
         self._history = self._history[:self._index + 1]
         self._history.append(save_state(self.state))
@@ -1217,7 +1217,7 @@ def main_loop(stdscr, initial_smiles=None):
                                         selection_anchor_y, cursor_x, cursor_y,
                                         max_y):
                     history.state = state
-                    history.save_to_history()
+                    history.push()
                 selection_mode = False
                 selection_anchor_x = None
                 selection_anchor_y = None
@@ -1252,7 +1252,7 @@ def main_loop(stdscr, initial_smiles=None):
             if result is not None:
                 state = result
                 history.state = state
-                history.save_to_history()
+                history.push()
 
             # Always redraw to clear the prompt
             need_redraw = True
@@ -1270,7 +1270,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if result is not None:
                     state.mol = result
                     history.state = state
-                    history.save_to_history()
+                    history.push()
 
                 # Always redraw to clear the prompt
                 need_redraw = True
@@ -1284,7 +1284,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if result is not None:
                     state.mol = result
                     history.state = state
-                    history.save_to_history()
+                    history.push()
                     need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
@@ -1295,7 +1295,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if result is not None:
                     state = result
                     history.state = state
-                    history.save_to_history()
+                    history.push()
 
                 # Always redraw to clear the prompt
                 need_redraw = True
@@ -1304,7 +1304,7 @@ def main_loop(stdscr, initial_smiles=None):
         elif key == 'x':
             if delete_at_cursor(state, cursor_x, cursor_y, max_y):
                 history.state = state
-                history.save_to_history()
+                history.push()
                 need_redraw = True
 
         # Enter area delete (selection) mode
@@ -1318,21 +1318,21 @@ def main_loop(stdscr, initial_smiles=None):
         elif key == '+':
             if adjust_formal_charge(state, cursor_x, cursor_y, max_y, 1):
                 history.state = state
-                history.save_to_history()
+                history.push()
                 need_redraw = True
 
         # Decrease formal charge
         elif key == '-':
             if adjust_formal_charge(state, cursor_x, cursor_y, max_y, -1):
                 history.state = state
-                history.save_to_history()
+                history.push()
                 need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == '\x0c':  # Ctrl-L
             if cleanup_coordinates(state, max_x, max_y):
                 history.state = state
-                history.save_to_history()
+                history.push()
                 need_redraw = True
 
         # Zoom out
@@ -1351,14 +1351,14 @@ def main_loop(stdscr, initial_smiles=None):
             if create_or_adjust_bond(state, cursor_x, cursor_y, max_y,
                                      bond_order):
                 history.state = state
-                history.save_to_history()
+                history.push()
                 need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == '@':
             clear_canvas(state, max_y)
             history.state = state
-            history.save_to_history()
+            history.push()
             need_redraw = True
 
         # Undo
