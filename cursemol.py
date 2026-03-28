@@ -13,6 +13,7 @@ Controls:
                to the first and last atoms from the SMILES)
   c, n, o    - Insert/modify carbon/nitrogen/oxygen atom
   x          - Delete atom or bond
+  X          - Area delete (select rectangle, Enter to delete, Esc to cancel)
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
   1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
@@ -641,6 +642,41 @@ def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
     return False
 
 
+def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
+    """
+    Delete all atoms whose screen positions fall within the rectangle.
+    Returns True if any atoms were deleted, False otherwise.
+    """
+    if history.mol is None or history.box is None or history.scale is None:
+        return False
+
+    conf = history.mol.GetConformer()
+    rows = max_y - 2
+
+    # Normalize rectangle coordinates
+    min_x, max_x = (x1, x2) if x1 <= x2 else (x2, x1)
+    min_y, max_y_rect = (y1, y2) if y1 <= y2 else (y2, y1)
+
+    # Find atoms within the rectangle
+    atoms_to_delete = []
+    for atom in history.mol.GetAtoms():
+        screen_x, screen_y = int_coords_for_atom(atom, history.box, history.scale,
+                                                 conf, history.y_offset, rows)
+        if min_x <= screen_x <= max_x and min_y <= screen_y <= max_y_rect:
+            atoms_to_delete.append(atom.GetIdx())
+
+    # Delete atoms in reverse order to avoid index issues
+    if atoms_to_delete:
+        for atom_idx in sorted(atoms_to_delete, reverse=True):
+            try:
+                history.mol.RemoveAtom(atom_idx)
+            except Exception:
+                logging.exception(f"Error removing atom {atom_idx}")
+        return True
+
+    return False
+
+
 def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     """
     Delete atom or bond at cursor position.
@@ -875,8 +911,39 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
     return None
 
 
-def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y):
-    """Redraw the entire screen with molecule, SMILES, and instructions."""
+def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
+    """Draw a selection rectangle on the screen."""
+    # Normalize coordinates
+    min_x, max_x_rect = (x1, x2) if x1 <= x2 else (x2, x1)
+    min_y, max_y_rect = (y1, y2) if y1 <= y2 else (y2, y1)
+
+    # Draw rectangle using box drawing characters or simple ASCII
+    try:
+        # Draw corners
+        stdscr.addch(min_y, min_x, '+')
+        stdscr.addch(min_y, max_x_rect, '+')
+        stdscr.addch(max_y_rect, min_x, '+')
+        stdscr.addch(max_y_rect, max_x_rect, '+')
+
+        # Draw horizontal lines
+        for x in range(min_x + 1, max_x_rect):
+            if x < max_x:
+                stdscr.addch(min_y, x, '-')
+                stdscr.addch(max_y_rect, x, '-')
+
+        # Draw vertical lines
+        for y in range(min_y + 1, max_y_rect):
+            if y < max_y:
+                stdscr.addch(y, min_x, '|')
+                stdscr.addch(y, max_x_rect, '|')
+    except curses.error:
+        pass
+
+
+def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y,
+                  selection_mode=False, selection_anchor_x=None, selection_anchor_y=None,
+                  cursor_x=None, cursor_y=None):
+    """Redraw the entire screen with molecule, SMILES, instructions, and optional selection."""
     stdscr.clear()
 
     # Draw molecule if present
@@ -896,6 +963,11 @@ def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y):
                 row += 1
             except curses.error:
                 break
+
+    # Draw selection rectangle if in selection mode
+    if selection_mode and selection_anchor_x is not None and cursor_x is not None:
+        draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
+                           cursor_x, cursor_y, max_x, max_y)
 
     # Draw instructions at the bottom
     for i, line in enumerate(instructions):
@@ -961,18 +1033,24 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
-        "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: chg",
-        "<>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | @: clear | ?: help | q: quit"
+        "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
+        "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 1-3: bond | @: clear | ?: help"
     ]
 
     # Track when we need to redraw the entire screen
     need_redraw = True
 
+    # Selection mode state
+    selection_mode = False
+    selection_anchor_x = None
+    selection_anchor_y = None
+
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, history, show_smiles, instructions, max_x,
-                          max_y)
+            redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y,
+                          selection_mode, selection_anchor_x, selection_anchor_y,
+                          cursor_x, cursor_y)
             need_redraw = False
 
         # Move cursor to current position
@@ -985,6 +1063,38 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Get user input
         key = stdscr.getch()
+
+        # Special handling for selection mode
+        if selection_mode:
+            if key == ord('h'):  # left
+                cursor_x = max(0, cursor_x - 1)
+                need_redraw = True
+            elif key == ord('j'):  # down
+                cursor_y = min(max_y - 1, cursor_y + 1)
+                need_redraw = True
+            elif key == ord('k'):  # up
+                cursor_y = max(0, cursor_y - 1)
+                need_redraw = True
+            elif key == ord('l'):  # right
+                cursor_x = min(max_x - 1, cursor_x + 1)
+                need_redraw = True
+            elif key in [10, 13]:  # Enter
+                # Delete atoms in selection
+                if delete_atoms_in_rect(history, selection_anchor_x, selection_anchor_y,
+                                       cursor_x, cursor_y, max_y):
+                    history.save_to_history()
+                selection_mode = False
+                selection_anchor_x = None
+                selection_anchor_y = None
+                need_redraw = True
+            elif key == 27:  # Escape
+                # Cancel selection
+                selection_mode = False
+                selection_anchor_x = None
+                selection_anchor_y = None
+                need_redraw = True
+            # Ignore all other keys in selection mode
+            continue
 
         # Handle movement (vi-style)
         if key == ord('h'):  # left
@@ -1074,6 +1184,13 @@ def main_loop(stdscr, initial_smiles=None):
             with history:
                 if delete_at_cursor(history, cursor_x, cursor_y, max_y):
                     need_redraw = True
+
+        # Enter area delete (selection) mode
+        elif key == ord('X'):
+            selection_mode = True
+            selection_anchor_x = cursor_x
+            selection_anchor_y = cursor_y
+            need_redraw = True
 
         # Increase formal charge
         elif key == ord('+'):
