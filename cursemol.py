@@ -475,7 +475,8 @@ class UndoHistory:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit: save state if no exception occurred."""
         if exc_type is None:
-            self._history.append(save_state(self.mol, self.box, self.scale, self.y_offset))
+            self._history.append(
+                save_state(self.mol, self.box, self.scale, self.y_offset))
             self._index = len(self._history) - 1
         return False  # Don't suppress exceptions
 
@@ -483,7 +484,8 @@ class UndoHistory:
         """Move back in history. Returns True if successful."""
         if self._index > 0:
             self._index -= 1
-            self.mol, self.box, self.scale, self.y_offset = restore_state(self._history[self._index])
+            self.mol, self.box, self.scale, self.y_offset = restore_state(
+                self._history[self._index])
             return True
         return False
 
@@ -491,19 +493,29 @@ class UndoHistory:
         """Move forward in history. Returns True if successful."""
         if self._index < len(self._history) - 1:
             self._index += 1
-            self.mol, self.box, self.scale, self.y_offset = restore_state(self._history[self._index])
+            self.mol, self.box, self.scale, self.y_offset = restore_state(
+                self._history[self._index])
             return True
         return False
 
 
-def insert_or_modify_atom(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y, max_y, element_symbol=None):
+def insert_or_modify_atom(stdscr,
+                          mol,
+                          box,
+                          scale,
+                          y_offset,
+                          cursor_x,
+                          cursor_y,
+                          max_y,
+                          element_symbol=None):
     """
     Handle the 'i' command: insert atom at cursor or modify existing atom.
     If element_symbol is provided, use it; otherwise prompt the user.
     Returns mol if successful, None if no change was made.
     """
     # Check if cursor is on an atom
-    atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+    atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y,
+                                   y_offset)
 
     # Get element symbol if not provided
     if element_symbol is None:
@@ -514,13 +526,15 @@ def insert_or_modify_atom(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y,
             if atom_idx is not None:
                 # Change existing atom's symbol
                 atom = mol.GetAtomWithIdx(atom_idx)
-                atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(element_symbol))
+                atom.SetAtomicNum(
+                    Chem.GetPeriodicTable().GetAtomicNumber(element_symbol))
             else:
                 # Add new atom to molecule
                 atom_idx = mol.AddAtom(Chem.Atom(element_symbol))
 
                 # Convert cursor position to molecule coordinates
-                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
+                                                    scale, max_y, y_offset)
 
                 # Set atom position in conformer
                 conf = mol.GetConformer()
@@ -534,19 +548,22 @@ def insert_or_modify_atom(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y,
     return None
 
 
-def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y, max_x, max_y):
+def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
+                           cursor_y, max_x, max_y):
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under cursor.
     Returns (mol, box, scale, y_offset) if successful, None if no change was made.
     """
     # Find atom under cursor
-    atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+    atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y,
+                                   y_offset)
 
     # Check if on a bond if not on an atom
     bond_atom_pair = None
     if atom_idx is None:
         # Convert cursor to molecule coordinates
-        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale,
+                                            max_y, y_offset)
         bond_atom_pair = find_bond_atoms(mol, mol_x, mol_y)
 
     if atom_idx is not None or bond_atom_pair is not None:
@@ -573,13 +590,16 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y
 
                         # Determine which atom is closer to cursor
                         conf = mol.GetConformer()
-                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                        mol_x, mol_y = screen_to_mol_coords(
+                            cursor_x, cursor_y, box, scale, max_y, y_offset)
 
                         pos1 = conf.GetAtomPosition(a1_idx)
                         pos2 = conf.GetAtomPosition(a2_idx)
 
-                        dist1 = math.sqrt((pos1.x - mol_x)**2 + (pos1.y - mol_y)**2)
-                        dist2 = math.sqrt((pos2.x - mol_x)**2 + (pos2.y - mol_y)**2)
+                        dist1 = math.sqrt((pos1.x - mol_x)**2 +
+                                          (pos1.y - mol_y)**2)
+                        dist2 = math.sqrt((pos2.x - mol_x)**2 +
+                                          (pos2.y - mol_y)**2)
 
                         if dist1 > dist2:
                             a1_idx, a2_idx = a2_idx, a1_idx
@@ -614,13 +634,16 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y
                     mol_height = screen_height / scale[1]
 
                     # Create box centered on new molecule center
-                    box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
-                           (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+                    box = ((center_x - mol_width / 2, center_y - mol_height / 2,
+                            0.0), (center_x + mol_width / 2,
+                                   center_y + mol_height / 2, 0.0))
 
                     # Recalculate y_offset
-                    mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+                    mol_display_height = int(mol_height * scale[1] +
+                                             2 * PADDING)
                     available_height = max_y - 2
-                    y_offset = max(0, (available_height - mol_display_height) // 2)
+                    y_offset = max(0,
+                                   (available_height - mol_display_height) // 2)
 
                     return mol, box, scale, y_offset
             except Exception as e:
@@ -704,7 +727,8 @@ def main_loop(stdscr, initial_smiles=None):
 
             # Draw molecule if present
             if history.mol is not None and history.box is not None and history.scale is not None:
-                draw_mol(stdscr, history.mol, history.box, history.scale, max_y, history.y_offset)
+                draw_mol(stdscr, history.mol, history.box, history.scale, max_y,
+                         history.y_offset)
 
             # Draw SMILES at the top if enabled (after molecule so it's on top)
             if show_smiles and history.mol is not None:
@@ -806,7 +830,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Insert atom at cursor position or change atom symbol
         elif key == ord('i'):
             if history.mol is not None and history.box is not None and history.scale is not None:
-                result = insert_or_modify_atom(stdscr, history.mol, history.box, history.scale, history.y_offset,
+                result = insert_or_modify_atom(stdscr, history.mol, history.box,
+                                               history.scale, history.y_offset,
                                                cursor_x, cursor_y, max_y)
                 if result is not None:
                     with history:
@@ -819,8 +844,10 @@ def main_loop(stdscr, initial_smiles=None):
         elif key in [ord('c'), ord('n'), ord('o')]:
             if history.mol is not None and history.box is not None and history.scale is not None:
                 symbol = chr(key).upper()
-                result = insert_or_modify_atom(stdscr, history.mol, history.box, history.scale, history.y_offset,
-                                               cursor_x, cursor_y, max_y, symbol)
+                result = insert_or_modify_atom(stdscr, history.mol, history.box,
+                                               history.scale, history.y_offset,
+                                               cursor_x, cursor_y, max_y,
+                                               symbol)
                 if result is not None:
                     with history:
                         history.mol = result
@@ -830,8 +857,10 @@ def main_loop(stdscr, initial_smiles=None):
         # Append atoms from SMILES to atom under cursor or bond
         elif key == ord('a'):
             if history.mol is not None and history.box is not None and history.scale is not None:
-                result = append_smiles_fragment(stdscr, history.mol, history.box, history.scale, history.y_offset,
-                                                cursor_x, cursor_y, max_x, max_y)
+                result = append_smiles_fragment(stdscr, history.mol,
+                                                history.box, history.scale,
+                                                history.y_offset, cursor_x,
+                                                cursor_y, max_x, max_y)
                 if result is not None:
                     with history:
                         history.mol, history.box, history.scale, history.y_offset = result
@@ -843,8 +872,9 @@ def main_loop(stdscr, initial_smiles=None):
         elif key == ord('x'):
             if history.mol is not None and history.box is not None and history.scale is not None:
                 # First try to find an atom at cursor
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y, history.box,
-                                               history.scale, max_y, history.y_offset)
+                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
+                                               history.box, history.scale,
+                                               max_y, history.y_offset)
                 if atom_idx is not None:
                     try:
                         with history:
@@ -855,8 +885,10 @@ def main_loop(stdscr, initial_smiles=None):
                         pass
                 else:
                     # No atom found, try to delete a bond instead
-                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, history.box,
-                                                        history.scale, max_y, history.y_offset)
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                        history.box,
+                                                        history.scale, max_y,
+                                                        history.y_offset)
                     atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
                     if atom_pair is not None:
                         atom1_idx, atom2_idx = atom_pair
@@ -868,8 +900,9 @@ def main_loop(stdscr, initial_smiles=None):
         # Increase formal charge
         elif key == ord('+'):
             if history.mol is not None and history.box is not None and history.scale is not None:
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y, history.box,
-                                               history.scale, max_y, history.y_offset)
+                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
+                                               history.box, history.scale,
+                                               max_y, history.y_offset)
                 if atom_idx is not None:
                     with history:
                         atom = history.mol.GetAtomWithIdx(atom_idx)
@@ -880,8 +913,9 @@ def main_loop(stdscr, initial_smiles=None):
         # Decrease formal charge
         elif key == ord('-'):
             if history.mol is not None and history.box is not None and history.scale is not None:
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y, history.box,
-                                               history.scale, max_y, history.y_offset)
+                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
+                                               history.box, history.scale,
+                                               max_y, history.y_offset)
                 if atom_idx is not None:
                     with history:
                         atom = history.mol.GetAtomWithIdx(atom_idx)
@@ -915,12 +949,13 @@ def main_loop(stdscr, initial_smiles=None):
 
                             # Create box centered on molecule center
                             history.box = ((center_x - mol_width / 2,
-                                    center_y - mol_height / 2, 0.0),
-                                   (center_x + mol_width / 2,
-                                    center_y + mol_height / 2, 0.0))
+                                            center_y - mol_height / 2, 0.0),
+                                           (center_x + mol_width / 2,
+                                            center_y + mol_height / 2, 0.0))
 
                             # Recalculate y_offset
-                            mol_display_height = int(mol_height * history.scale[1] +
+                            mol_display_height = int(mol_height *
+                                                     history.scale[1] +
                                                      2 * PADDING)
                             available_height = max_y - 2
                             history.y_offset = max(
@@ -954,14 +989,16 @@ def main_loop(stdscr, initial_smiles=None):
                 mol_height = screen_height / yscale
 
                 # New box centered on the same point
-                history.box = ((center_x - mol_width / 2, center_y - mol_height / 2,
-                        0.0), (center_x + mol_width / 2,
-                               center_y + mol_height / 2, 0.0))
+                history.box = ((center_x - mol_width / 2,
+                                center_y - mol_height / 2, 0.0),
+                               (center_x + mol_width / 2,
+                                center_y + mol_height / 2, 0.0))
 
                 # Recalculate y_offset for new scale
                 mol_display_height = int(mol_height * yscale + 2 * PADDING)
                 available_height = max_y - 2
-                history.y_offset = max(0, (available_height - mol_display_height) // 2)
+                history.y_offset = max(
+                    0, (available_height - mol_display_height) // 2)
 
                 need_redraw = True
 
@@ -988,14 +1025,16 @@ def main_loop(stdscr, initial_smiles=None):
                 mol_height = screen_height / yscale
 
                 # New box centered on the same point
-                history.box = ((center_x - mol_width / 2, center_y - mol_height / 2,
-                        0.0), (center_x + mol_width / 2,
-                               center_y + mol_height / 2, 0.0))
+                history.box = ((center_x - mol_width / 2,
+                                center_y - mol_height / 2, 0.0),
+                               (center_x + mol_width / 2,
+                                center_y + mol_height / 2, 0.0))
 
                 # Recalculate y_offset for new scale
                 mol_display_height = int(mol_height * yscale + 2 * PADDING)
                 available_height = max_y - 2
-                history.y_offset = max(0, (available_height - mol_display_height) // 2)
+                history.y_offset = max(
+                    0, (available_height - mol_display_height) // 2)
 
                 need_redraw = True
 
@@ -1004,8 +1043,9 @@ def main_loop(stdscr, initial_smiles=None):
             if history.mol is not None and history.box is not None and history.scale is not None:
                 bond_order = int(chr(key))
                 # Convert cursor position to molecule coordinates
-                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, history.box,
-                                                    history.scale, max_y, history.y_offset)
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                    history.box, history.scale,
+                                                    max_y, history.y_offset)
 
                 # Find the two atoms that should be bonded
                 atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
@@ -1013,7 +1053,8 @@ def main_loop(stdscr, initial_smiles=None):
                 if atom_pair is not None:
                     atom1_idx, atom2_idx = atom_pair
                     # Only redraw if modification was successful
-                    if modify_bond(history.mol, atom1_idx, atom2_idx, bond_order):
+                    if modify_bond(history.mol, atom1_idx, atom2_idx,
+                                   bond_order):
                         with history:
                             pass  # Bond already modified in-place
                         need_redraw = True
@@ -1028,7 +1069,8 @@ def main_loop(stdscr, initial_smiles=None):
 
                 # Default box: 20 angstroms centered at origin
                 box_size = 10.0
-                history.box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
+                history.box = ((-box_size, -box_size, 0.0), (box_size, box_size,
+                                                             0.0))
                 # Use default scale
                 xscale = DEFAULT_SCALE
                 yscale = xscale * ASPECT_RATIO
@@ -1066,7 +1108,8 @@ def main_loop(stdscr, initial_smiles=None):
 
             # Add "press any key" message
             try:
-                stdscr.addstr(len(help_lines) + 1, 0, "Press any key to exit help")
+                stdscr.addstr(
+                    len(help_lines) + 1, 0, "Press any key to exit help")
             except curses.error:
                 pass
 
@@ -1085,8 +1128,7 @@ def main():
         filename='cursemol.log',
         filemode='w',  # Truncate on open
         level=logging.ERROR,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+        format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Silence RDKit warnings
     logger = RDLogger.logger()
@@ -1094,9 +1136,10 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Display molecules in the terminal')
-    parser.add_argument('smiles',
-                        nargs='?',
-                        help='Initial SMILES string to display (use "-" to read from stdin)')
+    parser.add_argument(
+        'smiles',
+        nargs='?',
+        help='Initial SMILES string to display (use "-" to read from stdin)')
     args = parser.parse_args()
 
     # Handle reading from stdin if "-" is provided
