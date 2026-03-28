@@ -456,6 +456,44 @@ def restore_state(state):
     return mol, state['box'], state['scale'], state['y_offset']
 
 
+def insert_or_modify_atom(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y, max_y, element_symbol=None):
+    """
+    Handle the 'i' command: insert atom at cursor or modify existing atom.
+    If element_symbol is provided, use it; otherwise prompt the user.
+    Returns mol if successful, None if no change was made.
+    """
+    # Check if cursor is on an atom
+    atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+
+    # Get element symbol if not provided
+    if element_symbol is None:
+        element_symbol = enter_element(stdscr, max_y)
+
+    if element_symbol:
+        try:
+            if atom_idx is not None:
+                # Change existing atom's symbol
+                atom = mol.GetAtomWithIdx(atom_idx)
+                atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(element_symbol))
+            else:
+                # Add new atom to molecule
+                atom_idx = mol.AddAtom(Chem.Atom(element_symbol))
+
+                # Convert cursor position to molecule coordinates
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+
+                # Set atom position in conformer
+                conf = mol.GetConformer()
+                conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+
+            return mol
+        except Exception:
+            logging.exception("Error inserting/modifying atom")
+            pass
+
+    return None
+
+
 def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x, cursor_y, max_x, max_y):
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under cursor.
@@ -736,39 +774,17 @@ def main_loop(stdscr, initial_smiles=None):
         # Insert atom at cursor position or change atom symbol
         elif key == ord('i'):
             if mol is not None and box is not None and scale is not None:
-                # Check if cursor is on an atom
-                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
-                                               scale, max_y, y_offset)
+                result = insert_or_modify_atom(stdscr, mol, box, scale, y_offset,
+                                               cursor_x, cursor_y, max_y)
+                if result is not None:
+                    # Truncate future history
+                    history = history[:history_index + 1]
 
-                symbol = enter_element(stdscr, max_y)
-                if symbol:
-                    try:
-                        # Truncate future history
-                        history = history[:history_index + 1]
+                    mol = result
 
-                        if atom_idx is not None:
-                            # Change existing atom's symbol
-                            atom = mol.GetAtomWithIdx(atom_idx)
-                            atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(symbol))
-                        else:
-                            # Add new atom to molecule
-                            atom_idx = mol.AddAtom(Chem.Atom(symbol))
-
-                            # Convert cursor position to molecule coordinates
-                            mol_x, mol_y = screen_to_mol_coords(
-                                cursor_x, cursor_y, box, scale, max_y, y_offset)
-
-                            # Set atom position in conformer
-                            conf = mol.GetConformer()
-                            conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
-
-                        # Save new state to history
-                        history.append(save_state(mol, box, scale, y_offset))
-                        history_index = len(history) - 1
-                    except Exception:
-                        logging.exception("Error inserting atom (i command)")
-                        # Invalid element symbol or other error
-                        pass
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
 
                 # Always redraw to clear the prompt
                 need_redraw = True
@@ -776,40 +792,20 @@ def main_loop(stdscr, initial_smiles=None):
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in [ord('c'), ord('n'), ord('o')]:
             if mol is not None and box is not None and scale is not None:
-                # Check if cursor is on an atom
-                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
-                                               scale, max_y, y_offset)
-
                 symbol = chr(key).upper()
-                try:
+                result = insert_or_modify_atom(stdscr, mol, box, scale, y_offset,
+                                               cursor_x, cursor_y, max_y, symbol)
+                if result is not None:
                     # Truncate future history
                     history = history[:history_index + 1]
 
-                    if atom_idx is not None:
-                        # Change existing atom's symbol
-                        atom = mol.GetAtomWithIdx(atom_idx)
-                        atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(symbol))
-                    else:
-                        # Add new atom to molecule
-                        atom_idx = mol.AddAtom(Chem.Atom(symbol))
-
-                        # Convert cursor position to molecule coordinates
-                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
-                                                            scale, max_y, y_offset)
-
-                        # Set atom position in conformer
-                        conf = mol.GetConformer()
-                        conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+                    mol = result
 
                     # Save new state to history
                     history.append(save_state(mol, box, scale, y_offset))
                     history_index = len(history) - 1
 
                     need_redraw = True
-                except Exception:
-                    logging.exception("Error inserting atom (c/n/o shortcut)")
-                    # Invalid element symbol or other error
-                    pass
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == ord('a'):
