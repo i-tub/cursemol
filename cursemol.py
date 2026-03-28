@@ -9,7 +9,7 @@ Controls:
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
   a          - Append atoms from SMILES to atom under cursor
-  C, N, O    - Insert carbon/nitrogen/oxygen atom (shortcuts)
+  c, n, o    - Insert carbon/nitrogen/oxygen atom (shortcuts)
   x          - Delete atom or bond at cursor position
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
@@ -487,7 +487,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -619,10 +619,10 @@ def main_loop(stdscr, initial_smiles=None):
                         # Invalid element symbol or other error
                         pass
 
-        # Insert common atoms (C, N, O) - shortcuts
-        elif key in [ord('C'), ord('N'), ord('O')]:
+        # Insert common atoms (c, n, o) - shortcuts
+        elif key in [ord('c'), ord('n'), ord('o')]:
             if mol is not None and box is not None and scale is not None:
-                symbol = chr(key)
+                symbol = chr(key).upper()
                 try:
                     # Add atom to molecule
                     atom_idx = mol.AddAtom(Chem.Atom(symbol))
@@ -637,7 +637,7 @@ def main_loop(stdscr, initial_smiles=None):
 
                     need_redraw = True
                 except Exception:
-                    logging.exception("Error inserting atom (C/N/O shortcut)")
+                    logging.exception("Error inserting atom (c/n/o shortcut)")
                     # Invalid element symbol or other error
                     pass
 
