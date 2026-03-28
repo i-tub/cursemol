@@ -322,6 +322,7 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
         'O': 1,   # Red
         'N': 2,   # Blue
         'S': 3,   # Yellow
+        'P': 3,   # Yellow
         'F': 4,   # Green
         'Cl': 4,  # Green
         'Br': 4,  # Green
@@ -657,7 +658,33 @@ def main_loop(stdscr, initial_smiles=None):
             if mol is not None and mol.GetNumAtoms() > 0:
                 try:
                     AllChem.Compute2DCoords(mol)
-                    # Keep existing zoom level (box and scale)
+
+                    # Recenter molecule while keeping zoom level
+                    if scale is not None:
+                        # Get actual bounding box of molecule
+                        conf = mol.GetConformer(0)
+                        actual_box = get_box(conf)
+                        (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
+
+                        # Calculate center of molecule
+                        center_x = (xmin + xmax) / 2
+                        center_y = (ymin + ymax) / 2
+
+                        # Calculate box dimensions that fill the screen at current scale
+                        screen_width = max_x - 2 * PADDING
+                        screen_height = max_y - 2 - 2 * PADDING
+                        mol_width = screen_width / scale[0]
+                        mol_height = screen_height / scale[1]
+
+                        # Create box centered on molecule center
+                        box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
+                               (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+
+                        # Recalculate y_offset
+                        mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+                        available_height = max_y - 2
+                        y_offset = max(0, (available_height - mol_display_height) // 2)
+
                     need_redraw = True
                 except Exception:
                     # Error regenerating coordinates
