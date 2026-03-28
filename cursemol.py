@@ -919,6 +919,45 @@ def zoom_view(state, max_x, max_y, zoom_factor):
     state.y_offset = max(0, (available_height - mol_display_height) // 2)
 
 
+def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
+                              cursor_x, cursor_y, max_y):
+    """
+    Connect a sidechain to a bond by forming a ring.
+
+    The sidechain is inserted between the two bond atoms: the closer atom
+    connects to the first sidechain atom, and the farther atom connects
+    to the last sidechain atom.
+
+    Args:
+        state: Current molecular state
+        bond_atom_pair: (atom1_idx, atom2_idx) tuple
+        start_idx: Index of first atom in sidechain
+        end_idx: Index of last atom in sidechain
+        cursor_x, cursor_y: Cursor position (to determine which atom is closer)
+        max_y: Screen height
+    """
+    a1_idx, a2_idx = bond_atom_pair
+
+    # Determine which atom is closer to cursor
+    conf = state.mol.GetConformer()
+    mol_x, mol_y = screen_to_mol_coords(
+        cursor_x, cursor_y, state.box, state.scale, max_y, state.y_offset)
+
+    pos1 = conf.GetAtomPosition(a1_idx)
+    pos2 = conf.GetAtomPosition(a2_idx)
+
+    dist1 = math.sqrt((pos1.x - mol_x)**2 + (pos1.y - mol_y)**2)
+    dist2 = math.sqrt((pos2.x - mol_x)**2 + (pos2.y - mol_y)**2)
+
+    # Order atoms so a1 is closer to cursor
+    if dist1 > dist2:
+        a1_idx, a2_idx = a2_idx, a1_idx
+
+    # Connect sidechain: a1 (closer) -> first atom, a2 (farther) -> last atom
+    state.mol.AddBond(a1_idx, start_idx, Chem.BondType.SINGLE)
+    state.mol.AddBond(a2_idx, end_idx, Chem.BondType.SINGLE)
+
+
 def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under
@@ -955,29 +994,9 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
                                           Chem.BondType.SINGLE)
                     else:
                         # Cursor on bond: insert sidechain between the two atoms
-                        a1_idx, a2_idx = bond_atom_pair
-
-                        # Determine which atom is closer to cursor
-                        conf = state.mol.GetConformer()
-                        mol_x, mol_y = screen_to_mol_coords(
-                            cursor_x, cursor_y, state.box, state.scale, max_y,
-                            state.y_offset)
-
-                        pos1 = conf.GetAtomPosition(a1_idx)
-                        pos2 = conf.GetAtomPosition(a2_idx)
-
-                        dist1 = math.sqrt((pos1.x - mol_x)**2 +
-                                          (pos1.y - mol_y)**2)
-                        dist2 = math.sqrt((pos2.x - mol_x)**2 +
-                                          (pos2.y - mol_y)**2)
-
-                        if dist1 > dist2:
-                            a1_idx, a2_idx = a2_idx, a1_idx
-
-                        # Connect sidechain: a1 -> first atom, a2 -> last atom
-                        state.mol.AddBond(a1_idx, start_idx,
-                                          Chem.BondType.SINGLE)
-                        state.mol.AddBond(a2_idx, end_idx, Chem.BondType.SINGLE)
+                        connect_sidechain_to_bond(state, bond_atom_pair,
+                                                  start_idx, end_idx,
+                                                  cursor_x, cursor_y, max_y)
 
                     # Create coordinate map to keep original atoms fixed
                     coord_map = {}
