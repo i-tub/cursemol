@@ -570,7 +570,11 @@ def get_smiles(mol):
     mol_for_smiles = Chem.Mol(mol)
     try:
         Chem.SanitizeMol(mol_for_smiles)
+        Chem.DetectBondStereochemistry(mol_for_smiles)
+        Chem.AssignChiralTypesFromBondDirs(mol_for_smiles)
+        Chem.AssignStereochemistry(mol_for_smiles, force=True)
     except:
+        logging.exception("get_smiles error")
         mol_for_smiles = mol
     return Chem.MolToSmiles(mol_for_smiles)
 
