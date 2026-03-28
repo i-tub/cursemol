@@ -177,8 +177,7 @@ def find_atom_at_cursor(mol,
     return None
 
 
-def find_bond_atoms_screen(mol, cursor_x, cursor_y, box, scale, max_y,
-                           y_offset):
+def find_bond_atoms(mol, cursor_x, cursor_y, box, scale, max_y, y_offset):
     """
     Find the two atoms closest to cursor position such that
     the cursor is roughly between them (angle >= 160 degrees).
@@ -609,9 +608,8 @@ def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
         return False
 
     # Find the two atoms that should be bonded (using screen coordinates)
-    atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
-                                       history.box, history.scale, max_y,
-                                       history.y_offset)
+    atom_pair = find_bond_atoms(history.mol, cursor_x, cursor_y, history.box,
+                                history.scale, max_y, history.y_offset)
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
@@ -660,8 +658,9 @@ def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
     # Find atoms within the rectangle
     atoms_to_delete = []
     for atom in history.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, history.box, history.scale,
-                                                 conf, history.y_offset, rows)
+        screen_x, screen_y = int_coords_for_atom(atom, history.box,
+                                                 history.scale, conf,
+                                                 history.y_offset, rows)
         if min_x <= screen_x <= max_x and min_y <= screen_y <= max_y_rect:
             atoms_to_delete.append(atom.GetIdx())
 
@@ -697,9 +696,9 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
             return False
     else:
         # No atom found, try to delete a bond instead
-        atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
-                                           history.box, history.scale, max_y,
-                                           history.y_offset)
+        atom_pair = find_bond_atoms(history.mol, cursor_x, cursor_y,
+                                    history.box, history.scale, max_y,
+                                    history.y_offset)
         if atom_pair is not None:
             atom1_idx, atom2_idx = atom_pair
             if modify_bond(history.mol, atom1_idx, atom2_idx, 0):
@@ -775,8 +774,7 @@ def show_help(stdscr, max_x):
 
     # Add "press any key" message
     try:
-        stdscr.addstr(
-            len(help_lines) + 1, 0, "Press any key to exit help")
+        stdscr.addstr(len(help_lines) + 1, 0, "Press any key to exit help")
     except curses.error:
         pass
 
@@ -870,8 +868,8 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
     # Check if on a bond if not on an atom
     bond_atom_pair = None
     if atom_idx is None:
-        bond_atom_pair = find_bond_atoms_screen(mol, cursor_x, cursor_y, box,
-                                                scale, max_y, y_offset)
+        bond_atom_pair = find_bond_atoms(mol, cursor_x, cursor_y, box, scale,
+                                         max_y, y_offset)
 
     if atom_idx is not None or bond_atom_pair is not None:
         # Prompt for SMILES
@@ -967,9 +965,17 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
         pass
 
 
-def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y,
-                  selection_mode=False, selection_anchor_x=None, selection_anchor_y=None,
-                  cursor_x=None, cursor_y=None):
+def redraw_screen(stdscr,
+                  history,
+                  show_smiles,
+                  instructions,
+                  max_x,
+                  max_y,
+                  selection_mode=False,
+                  selection_anchor_x=None,
+                  selection_anchor_y=None,
+                  cursor_x=None,
+                  cursor_y=None):
     """Redraw the entire screen with molecule, SMILES, instructions, and optional selection."""
     stdscr.clear()
 
@@ -994,7 +1000,7 @@ def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y,
     # Draw selection rectangle if in selection mode
     if selection_mode and selection_anchor_x is not None and cursor_x is not None:
         draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
-                           cursor_x, cursor_y, max_x, max_y)
+                            cursor_x, cursor_y, max_x, max_y)
 
     # Draw instructions at the bottom
     for i, line in enumerate(instructions):
@@ -1075,9 +1081,9 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y,
-                          selection_mode, selection_anchor_x, selection_anchor_y,
-                          cursor_x, cursor_y)
+            redraw_screen(stdscr, history, show_smiles, instructions, max_x,
+                          max_y, selection_mode, selection_anchor_x,
+                          selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
 
         # Move cursor to current position
@@ -1108,8 +1114,9 @@ def main_loop(stdscr, initial_smiles=None):
         elif selection_mode:
             if key in '\r\n':  # Enter
                 # Delete atoms in selection
-                if delete_atoms_in_rect(history, selection_anchor_x, selection_anchor_y,
-                                       cursor_x, cursor_y, max_y):
+                if delete_atoms_in_rect(history, selection_anchor_x,
+                                        selection_anchor_y, cursor_x, cursor_y,
+                                        max_y):
                     history.save_to_history()
                 selection_mode = False
                 selection_anchor_x = None
