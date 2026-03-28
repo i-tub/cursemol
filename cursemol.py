@@ -4,6 +4,7 @@ Cursemol - A simple curses-based program for displaying molecules.
 
 Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
+  H, J, K, L - Shift molecule left, down, up, down, right
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
@@ -458,7 +459,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s/S: SMILES | i/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -516,6 +517,39 @@ def main_loop(stdscr, initial_smiles=None):
             cursor_y = max(0, cursor_y - 1)
         elif key == ord('l'):  # right
             cursor_x = min(max_x - 1, cursor_x + 1)
+
+        # Shift molecule (move all atoms)
+        elif key == ord('K'):  # shift up
+            if box is not None and scale is not None:
+                (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                # Move atoms up on screen = decrease y in box
+                dy = 1.0 / scale[1]
+                box = ((xmin, ymin - dy, zmin), (xmax, ymax - dy, zmax))
+                need_redraw = True
+
+        elif key == ord('H'):  # shift left
+            if box is not None and scale is not None:
+                (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                # Move atoms left on screen = increase x in box
+                dx = 1.0 / scale[0]
+                box = ((xmin + dx, ymin, zmin), (xmax + dx, ymax, zmax))
+                need_redraw = True
+
+        elif key == ord('J'):  # shift down
+            if box is not None and scale is not None:
+                (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                # Move atoms down on screen = increase y in box
+                dy = 1.0 / scale[1]
+                box = ((xmin, ymin + dy, zmin), (xmax, ymax + dy, zmax))
+                need_redraw = True
+
+        elif key == ord('L'):  # shift right
+            if box is not None and scale is not None:
+                (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                # Move atoms right on screen = decrease x in box
+                dx = 1.0 / scale[0]
+                box = ((xmin - dx, ymin, zmin), (xmax - dx, ymax, zmax))
+                need_redraw = True
 
         # Enter SMILES string
         elif key == ord('s'):
