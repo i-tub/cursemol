@@ -314,6 +314,18 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     cols = 200  # Generous width
 
     screen = [[' '] * cols for i in range(rows)]
+    screen_colors = [[0] * cols for i in range(rows)]  # 0 = default color
+
+    # Color mapping for elements
+    element_colors = {
+        'O': 1,   # Red
+        'N': 2,   # Blue
+        'S': 3,   # Yellow
+        'F': 4,   # Green
+        'Cl': 4,  # Green
+        'Br': 4,  # Green
+        'I': 4,   # Green
+    }
 
     try:
         for bond in mol.GetBonds():
@@ -332,10 +344,16 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     for atom in mol.GetAtoms():
         x, y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
         sym = atom.GetSymbol()
+        color = element_colors.get(sym, 0)  # Get color for this element
+        # Make all symbols bold except C
+        is_bold = sym != 'C'
+
         for i, c in enumerate(sym):
             # Bounds check to avoid IndexError
             if 0 <= y < rows and 0 <= x + i < cols:
                 screen[y][x + i] = c
+                # Store color and bold flag (color in lower bits, bold in high bit)
+                screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
 
         # Draw formal charge if non-zero
         charge = atom.GetFormalCharge()
@@ -355,23 +373,46 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
             charge_x = x + len(sym)
             charge_y = y - 1
 
-            # Draw charge string
+            # Draw charge string with same color and bold as atom
             for i, c in enumerate(charge_str):
                 if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
                     screen[charge_y][charge_x + i] = c
+                    screen_colors[charge_y][charge_x + i] = color | (0x100 if is_bold else 0)
 
     # Display screen without reversing (coordinates are already correct)
-    for i, line in enumerate(screen):
-        try:
-            stdscr.addstr(i, 0, ''.join(line))
-        except curses.error:
-            pass
+    for i in range(len(screen)):
+        for j in range(len(screen[i])):
+            char = screen[i][j]
+            color_data = screen_colors[i][j]
+            color = color_data & 0xFF  # Lower 8 bits
+            is_bold = (color_data & 0x100) != 0  # Bit 8
+            try:
+                attr = 0
+                if color > 0:
+                    attr |= curses.color_pair(color)
+                if is_bold:
+                    attr |= curses.A_BOLD
+
+                if attr > 0:
+                    stdscr.addstr(i, j, char, attr)
+                else:
+                    stdscr.addstr(i, j, char)
+            except curses.error:
+                pass
 
 
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     curses.use_default_colors()  # Use terminal's default colors
+
+    # Initialize colors
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_RED, -1)     # Oxygen - red
+    curses.init_pair(2, curses.COLOR_BLUE, -1)    # Nitrogen - blue
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)  # Sulfur - yellow
+    curses.init_pair(4, curses.COLOR_GREEN, -1)   # Halogens - green
+
     stdscr.clear()
 
     # Get screen dimensions
