@@ -564,6 +564,26 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
+    """
+    Adjust formal charge of atom at cursor position by delta.
+    Returns True if charge was adjusted, False otherwise.
+    """
+    if history.mol is None or history.box is None or history.scale is None:
+        return False
+
+    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
+                                   history.box, history.scale,
+                                   max_y, history.y_offset)
+    if atom_idx is not None:
+        atom = history.mol.GetAtomWithIdx(atom_idx)
+        current_charge = atom.GetFormalCharge()
+        atom.SetFormalCharge(current_charge + delta)
+        return True
+
+    return False
+
+
 def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     """
     Delete atom or bond at cursor position.
@@ -963,28 +983,14 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Increase formal charge
         elif key == ord('+'):
-            if history.mol is not None and history.box is not None and history.scale is not None:
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
-                                               history.box, history.scale,
-                                               max_y, history.y_offset)
-                if atom_idx is not None:
-                    with history:
-                        atom = history.mol.GetAtomWithIdx(atom_idx)
-                        current_charge = atom.GetFormalCharge()
-                        atom.SetFormalCharge(current_charge + 1)
+            with history:
+                if adjust_formal_charge(history, cursor_x, cursor_y, max_y, 1):
                     need_redraw = True
 
         # Decrease formal charge
         elif key == ord('-'):
-            if history.mol is not None and history.box is not None and history.scale is not None:
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
-                                               history.box, history.scale,
-                                               max_y, history.y_offset)
-                if atom_idx is not None:
-                    with history:
-                        atom = history.mol.GetAtomWithIdx(atom_idx)
-                        current_charge = atom.GetFormalCharge()
-                        atom.SetFormalCharge(current_charge - 1)
+            with history:
+                if adjust_formal_charge(history, cursor_x, cursor_y, max_y, -1):
                     need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
