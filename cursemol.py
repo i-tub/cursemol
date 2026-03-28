@@ -702,6 +702,37 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
     return None
 
 
+def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y):
+    """Redraw the entire screen with molecule, SMILES, and instructions."""
+    stdscr.clear()
+
+    # Draw molecule if present
+    if history.mol is not None and history.box is not None and history.scale is not None:
+        draw_mol(stdscr, history.mol, history.box, history.scale, max_y,
+                 history.y_offset)
+
+    # Draw SMILES at the top if enabled (after molecule so it's on top)
+    if show_smiles and history.mol is not None:
+        current_smiles = get_smiles(history.mol)
+        # Wrap SMILES to screen width
+        row = 0
+        for i in range(0, len(current_smiles), max_x - 1):
+            chunk = current_smiles[i:i + max_x - 1]
+            try:
+                stdscr.addstr(row, 0, chunk)
+                row += 1
+            except curses.error:
+                break
+
+    # Draw instructions at the bottom
+    for i, line in enumerate(instructions):
+        try:
+            stdscr.addstr(max_y - len(instructions) + i, 0,
+                          line[:max_x - 1])
+        except curses.error:
+            pass
+
+
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
@@ -771,34 +802,7 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            stdscr.clear()
-
-            # Draw molecule if present
-            if history.mol is not None and history.box is not None and history.scale is not None:
-                draw_mol(stdscr, history.mol, history.box, history.scale, max_y,
-                         history.y_offset)
-
-            # Draw SMILES at the top if enabled (after molecule so it's on top)
-            if show_smiles and history.mol is not None:
-                current_smiles = get_smiles(history.mol)
-                # Wrap SMILES to screen width
-                row = 0
-                for i in range(0, len(current_smiles), max_x - 1):
-                    chunk = current_smiles[i:i + max_x - 1]
-                    try:
-                        stdscr.addstr(row, 0, chunk)
-                        row += 1
-                    except curses.error:
-                        break
-
-            # Draw instructions at the bottom
-            for i, line in enumerate(instructions):
-                try:
-                    stdscr.addstr(max_y - len(instructions) + i, 0,
-                                  line[:max_x - 1])
-                except curses.error:
-                    pass
-
+            redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y)
             need_redraw = False
 
         # Move cursor to current position
