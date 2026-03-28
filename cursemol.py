@@ -919,6 +919,28 @@ def zoom_view(state, max_x, max_y, zoom_factor):
     state.y_offset = max(0, (available_height - mol_display_height) // 2)
 
 
+def compute_coords_with_fixed_atoms(mol, num_fixed_atoms):
+    """
+    Compute 2D coordinates for a molecule, keeping existing atoms fixed.
+
+    This is useful when adding new atoms to a molecule - the original atoms
+    maintain their positions while new atoms are positioned around them.
+
+    Args:
+        mol: RDKit molecule
+        num_fixed_atoms: Number of atoms at the beginning to keep fixed
+    """
+    # Create coordinate map to keep original atoms fixed
+    coord_map = {}
+    conf = mol.GetConformer()
+    for i in range(num_fixed_atoms):
+        pos = conf.GetAtomPosition(i)
+        coord_map[i] = Geometry.Point2D(pos.x, pos.y)
+
+    # Compute 2D coordinates for new atoms only
+    AllChem.Compute2DCoords(mol, coordMap=coord_map)
+
+
 def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
                               cursor_x, cursor_y, max_y):
     """
@@ -1002,15 +1024,8 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
             connect_sidechain_to_bond(state, bond_atom_pair, start_idx,
                                       end_idx, cursor_x, cursor_y, max_y)
 
-        # Create coordinate map to keep original atoms fixed
-        coord_map = {}
-        conf = state.mol.GetConformer()
-        for i in range(start_idx):
-            pos = conf.GetAtomPosition(i)
-            coord_map[i] = Geometry.Point2D(pos.x, pos.y)
-
-        # Compute 2D coordinates for new atoms only
-        AllChem.Compute2DCoords(state.mol, coordMap=coord_map)
+        # Compute 2D coordinates for new atoms, keeping original atoms fixed
+        compute_coords_with_fixed_atoms(state.mol, start_idx)
 
         # Update box to show all atoms while keeping same scale
         box, y_offset = recalculate_box_and_offset(state.mol, state.scale,
