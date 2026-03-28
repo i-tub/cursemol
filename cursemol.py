@@ -757,6 +757,33 @@ def clear_canvas(history, max_y):
     history.y_offset = max(0, (available_height - mol_height) // 2)
 
 
+def show_help(stdscr, max_x):
+    """
+    Display help text and wait for user to press a key.
+    """
+    stdscr.clear()
+    # Display the help text from the docstring
+    help_text = __doc__.strip()
+    help_lines = help_text.split('\n')
+
+    # Display help text
+    for i, line in enumerate(help_lines):
+        try:
+            stdscr.addstr(i, 0, line[:max_x - 1])
+        except curses.error:
+            pass
+
+    # Add "press any key" message
+    try:
+        stdscr.addstr(
+            len(help_lines) + 1, 0, "Press any key to exit help")
+    except curses.error:
+        pass
+
+    stdscr.refresh()
+    stdscr.getch()  # Wait for any key
+
+
 def shift_view(history, dx_sign, dy_sign):
     """
     Shift the view (pan the molecule) by one step in the given direction.
@@ -1241,27 +1268,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Help
         elif key == '?':
-            stdscr.clear()
-            # Display the help text from the docstring
-            help_text = __doc__.strip()
-            help_lines = help_text.split('\n')
-
-            # Display help text
-            for i, line in enumerate(help_lines):
-                try:
-                    stdscr.addstr(i, 0, line[:max_x - 1])
-                except curses.error:
-                    pass
-
-            # Add "press any key" message
-            try:
-                stdscr.addstr(
-                    len(help_lines) + 1, 0, "Press any key to exit help")
-            except curses.error:
-                pass
-
-            stdscr.refresh()
-            stdscr.getch()  # Wait for any key
+            show_help(stdscr, max_x)
             need_redraw = True
 
         # Quit
