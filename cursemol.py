@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 """
-CurseMol - A molecular sketcher for the terminal
+CurseMol - Molecular sketcher for the terminal
 
 Controls:
-  h, j, k, l - Move cursor left, down, up, right (vi-style)
+  h, j, k, l - Move cursor left, down, up, right
   H, J, K, L - Shift molecule left, down, up, down, right
-  s          - Enter a SMILES string
+  s          - Enter a SMILES string to replace the current molecule
   S          - Toggle SMILES display
-  i          - Insert atom at cursor position
+  i          - Insert/modify atom at cursor position
   a          - Append atoms from SMILES to atom or bond under cursor
-               (appending to a bond forms a ring)
-  c, n, o    - Insert carbon/nitrogen/oxygen atom (shortcuts)
-  x          - Delete atom or bond at cursor position
+               (appending to a bond forms a ring by connecting the bond atoms
+               to the first and last atoms from the SMILES)
+  c, n, o    - Insert/modify carbon/nitrogen/oxygen atom
+  x          - Delete atom or bond
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
   1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
   @          - Clear canvas (reset to blank slate)
   u          - Undo
   r          - Redo
-  Ctrl-L     - Cleanup/regenerate coordinates
+  Ctrl-L     - Clean up (regenerate coordinates)
   ?          - Show this help
   q          - Quit
 """
@@ -516,7 +517,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
         "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: chg",
-        "<>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | @: clear | q: quit"
+        "<>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | @: clear | ?: help | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
