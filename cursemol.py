@@ -548,6 +548,43 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def zoom_view(history, max_x, max_y, zoom_factor):
+    """
+    Zoom in or out by the given factor.
+    zoom_factor > 1 means zoom in, < 1 means zoom out.
+    """
+    if history.box is None or history.scale is None:
+        return
+
+    # Calculate current center of the box
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
+    center_x = (xmin + xmax) / 2
+    center_y = (ymin + ymax) / 2
+
+    # Adjust scale by zoom factor and clamp to limits
+    xscale = history.scale[0] * zoom_factor
+    xscale = max(MIN_SCALE, min(MAX_SCALE, xscale))
+    yscale = xscale * ASPECT_RATIO
+    history.scale = (xscale, yscale)
+
+    # Calculate new box dimensions to show at new scale
+    screen_width = max_x - 2 * PADDING
+    screen_height = max_y - 2 - 2 * PADDING
+
+    # Molecule coordinate range that fits on screen at new scale
+    mol_width = screen_width / xscale
+    mol_height = screen_height / yscale
+
+    # New box centered on the same point
+    history.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
+                   (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+
+    # Recalculate y_offset for new scale
+    mol_display_height = int(mol_height * yscale + 2 * PADDING)
+    available_height = max_y - 2
+    history.y_offset = max(0, (available_height - mol_display_height) // 2)
+
+
 def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
                            cursor_y, max_x, max_y):
     """
@@ -968,75 +1005,13 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Zoom out
         elif key == ord('<'):
-            if history.box is not None and history.scale is not None:
-                # Calculate current center of the box
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                center_x = (xmin + xmax) / 2
-                center_y = (ymin + ymax) / 2
-
-                # Decrease scale by factor of 1.2
-                xscale = max(MIN_SCALE, history.scale[0] / 1.2)
-                yscale = xscale * ASPECT_RATIO
-                history.scale = (xscale, yscale)
-
-                # Calculate new box dimensions to show at new scale
-                # Available screen space
-                screen_width = max_x - 2 * PADDING
-                screen_height = max_y - 2 - 2 * PADDING  # Leave room for instructions
-
-                # Molecule coordinate range that fits on screen at new scale
-                mol_width = screen_width / xscale
-                mol_height = screen_height / yscale
-
-                # New box centered on the same point
-                history.box = ((center_x - mol_width / 2,
-                                center_y - mol_height / 2, 0.0),
-                               (center_x + mol_width / 2,
-                                center_y + mol_height / 2, 0.0))
-
-                # Recalculate y_offset for new scale
-                mol_display_height = int(mol_height * yscale + 2 * PADDING)
-                available_height = max_y - 2
-                history.y_offset = max(
-                    0, (available_height - mol_display_height) // 2)
-
-                need_redraw = True
+            zoom_view(history, max_x, max_y, 1.0 / 1.2)
+            need_redraw = True
 
         # Zoom in
         elif key == ord('>'):
-            if history.box is not None and history.scale is not None:
-                # Calculate current center of the box
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                center_x = (xmin + xmax) / 2
-                center_y = (ymin + ymax) / 2
-
-                # Increase scale by factor of 1.2
-                xscale = min(MAX_SCALE, history.scale[0] * 1.2)
-                yscale = xscale * ASPECT_RATIO
-                history.scale = (xscale, yscale)
-
-                # Calculate new box dimensions to show at new scale
-                # Available screen space
-                screen_width = max_x - 2 * PADDING
-                screen_height = max_y - 2 - 2 * PADDING  # Leave room for instructions
-
-                # Molecule coordinate range that fits on screen at new scale
-                mol_width = screen_width / xscale
-                mol_height = screen_height / yscale
-
-                # New box centered on the same point
-                history.box = ((center_x - mol_width / 2,
-                                center_y - mol_height / 2, 0.0),
-                               (center_x + mol_width / 2,
-                                center_y + mol_height / 2, 0.0))
-
-                # Recalculate y_offset for new scale
-                mol_display_height = int(mol_height * yscale + 2 * PADDING)
-                available_height = max_y - 2
-                history.y_offset = max(
-                    0, (available_height - mol_display_height) // 2)
-
-                need_redraw = True
+            zoom_view(history, max_x, max_y, 1.2)
+            need_redraw = True
 
         # Add/modify/delete bond
         elif key in [ord('1'), ord('2'), ord('3')]:
