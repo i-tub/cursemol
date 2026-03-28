@@ -1064,21 +1064,27 @@ def main_loop(stdscr, initial_smiles=None):
         # Get user input
         key = stdscr.getch()
 
+        # Handle movement (vi-style) - works in both normal and selection mode
+        if key == ord('h'):  # left
+            cursor_x = max(0, cursor_x - 1)
+            if selection_mode:
+                need_redraw = True
+        elif key == ord('j'):  # down
+            cursor_y = min(max_y - 1, cursor_y + 1)
+            if selection_mode:
+                need_redraw = True
+        elif key == ord('k'):  # up
+            cursor_y = max(0, cursor_y - 1)
+            if selection_mode:
+                need_redraw = True
+        elif key == ord('l'):  # right
+            cursor_x = min(max_x - 1, cursor_x + 1)
+            if selection_mode:
+                need_redraw = True
+
         # Special handling for selection mode
-        if selection_mode:
-            if key == ord('h'):  # left
-                cursor_x = max(0, cursor_x - 1)
-                need_redraw = True
-            elif key == ord('j'):  # down
-                cursor_y = min(max_y - 1, cursor_y + 1)
-                need_redraw = True
-            elif key == ord('k'):  # up
-                cursor_y = max(0, cursor_y - 1)
-                need_redraw = True
-            elif key == ord('l'):  # right
-                cursor_x = min(max_x - 1, cursor_x + 1)
-                need_redraw = True
-            elif key in [10, 13]:  # Enter
+        elif selection_mode:
+            if key in [10, 13]:  # Enter
                 # Delete atoms in selection
                 if delete_atoms_in_rect(history, selection_anchor_x, selection_anchor_y,
                                        cursor_x, cursor_y, max_y):
@@ -1093,18 +1099,11 @@ def main_loop(stdscr, initial_smiles=None):
                 selection_anchor_x = None
                 selection_anchor_y = None
                 need_redraw = True
+            elif key == ord('q'):
+                # Allow quitting from selection mode
+                return get_smiles(history.mol)
             # Ignore all other keys in selection mode
             continue
-
-        # Handle movement (vi-style)
-        if key == ord('h'):  # left
-            cursor_x = max(0, cursor_x - 1)
-        elif key == ord('j'):  # down
-            cursor_y = min(max_y - 1, cursor_y + 1)
-        elif key == ord('k'):  # up
-            cursor_y = max(0, cursor_y - 1)
-        elif key == ord('l'):  # right
-            cursor_x = min(max_x - 1, cursor_x + 1)
 
         # Shift molecule (move all atoms)
         elif key == ord('K'):  # shift up
