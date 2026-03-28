@@ -22,7 +22,7 @@ Controls:
   r          - Redo
   Ctrl-L     - Clean up (regenerate coordinates)
   ?          - Show this help
-  q          - Quit
+  q          - Quit and print SMILES to stdout
 """
 
 import argparse
@@ -402,9 +402,11 @@ def draw_mol(stdscr, state, max_y):
     try:
         for bond in state.mol.GetBonds():
             x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), state.box,
-                                         state.scale, conf, state.y_offset, rows)
+                                         state.scale, conf, state.y_offset,
+                                         rows)
             x2, y2 = int_coords_for_atom(bond.GetEndAtom(), state.box,
-                                         state.scale, conf, state.y_offset, rows)
+                                         state.scale, conf, state.y_offset,
+                                         rows)
             # Only draw if bond type is in our dictionary
             if bond.GetBondType() in BOND_CHARS:
                 draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
@@ -488,22 +490,19 @@ def get_smiles(mol):
 
 def save_state(state):
     """Save current state for undo/redo. Returns a deep copy of the state."""
-    return State(
-        mol=Chem.RWMol(state.mol) if state.mol is not None else None,
-        box=state.box,
-        scale=state.scale,
-        y_offset=state.y_offset
-    )
+    return State(mol=Chem.RWMol(state.mol) if state.mol is not None else None,
+                 box=state.box,
+                 scale=state.scale,
+                 y_offset=state.y_offset)
 
 
 def restore_state(saved_state):
     """Restore state from saved state. Returns a new State object."""
-    return State(
-        mol=Chem.RWMol(saved_state.mol) if saved_state.mol is not None else None,
-        box=saved_state.box,
-        scale=saved_state.scale,
-        y_offset=saved_state.y_offset
-    )
+    return State(mol=Chem.RWMol(saved_state.mol)
+                 if saved_state.mol is not None else None,
+                 box=saved_state.box,
+                 scale=saved_state.scale,
+                 y_offset=saved_state.y_offset)
 
 
 class UndoHistory:
@@ -915,7 +914,8 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
 
                     if atom_idx is not None:
                         # Cursor on atom: connect to first atom of sidechain
-                        state.mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
+                        state.mol.AddBond(atom_idx, start_idx,
+                                          Chem.BondType.SINGLE)
                     else:
                         # Cursor on bond: insert sidechain between the two atoms
                         a1_idx, a2_idx = bond_atom_pair
@@ -938,7 +938,8 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
                             a1_idx, a2_idx = a2_idx, a1_idx
 
                         # Connect sidechain: a1 -> first atom, a2 -> last atom
-                        state.mol.AddBond(a1_idx, start_idx, Chem.BondType.SINGLE)
+                        state.mol.AddBond(a1_idx, start_idx,
+                                          Chem.BondType.SINGLE)
                         state.mol.AddBond(a2_idx, end_idx, Chem.BondType.SINGLE)
 
                     # Create coordinate map to keep original atoms fixed
@@ -955,8 +956,10 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
                     box, y_offset = recalculate_box_and_offset(
                         state.mol, state.scale, max_x, max_y)
 
-                    return State(mol=state.mol, box=box, scale=state.scale,
-                                y_offset=y_offset)
+                    return State(mol=state.mol,
+                                 box=box,
+                                 scale=state.scale,
+                                 y_offset=y_offset)
             except Exception as e:
                 logging.exception("Error appending atoms (a command)")
                 # Error appending atoms
@@ -1196,8 +1199,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
             if state.mol is not None and state.box is not None and state.scale is not None:
-                result = insert_or_modify_atom(stdscr, state,
-                                               cursor_x, cursor_y, max_y)
+                result = insert_or_modify_atom(stdscr, state, cursor_x,
+                                               cursor_y, max_y)
                 if result is not None:
                     state.mol = result
                     history.state = state
@@ -1210,9 +1213,8 @@ def main_loop(stdscr, initial_smiles=None):
         elif key in ['c', 'n', 'o']:
             if state.mol is not None and state.box is not None and state.scale is not None:
                 symbol = key.upper()
-                result = insert_or_modify_atom(stdscr, state,
-                                               cursor_x, cursor_y, max_y,
-                                               symbol)
+                result = insert_or_modify_atom(stdscr, state, cursor_x,
+                                               cursor_y, max_y, symbol)
                 if result is not None:
                     state.mol = result
                     history.state = state
@@ -1222,8 +1224,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
             if state.mol is not None and state.box is not None and state.scale is not None:
-                result = append_smiles_fragment(stdscr, state,
-                                                cursor_x, cursor_y, max_x, max_y)
+                result = append_smiles_fragment(stdscr, state, cursor_x,
+                                                cursor_y, max_x, max_y)
                 if result is not None:
                     state = result
                     history.state = state
