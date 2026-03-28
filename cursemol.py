@@ -45,9 +45,14 @@ ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
 
 BOND_CHARS = {
-    Chem.BondType.SINGLE: '.',
+    Chem.BondType.SINGLE: '·',
     Chem.BondType.DOUBLE: '=',
-    Chem.BondType.TRIPLE: '#'
+    Chem.BondType.TRIPLE: '#',
+}
+
+BOND_DIR_CHARS = {
+    Chem.BondDir.BEGINWEDGE: '•',
+    Chem.BondDir.BEGINDASH: '◦',
 }
 
 # Color mapping for elements
@@ -137,7 +142,7 @@ def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
     return x, y
 
 
-def draw_line(screen, char, x1, y1, x2, y2):
+def draw_line(screen, char, char2, x1, y1, x2, y2):
     vertical = False
     if abs(x2 - x1) < abs(y2 - y1):
         x1, y1 = y1, x1
@@ -148,15 +153,22 @@ def draw_line(screen, char, x1, y1, x2, y2):
     except ZeroDivisionError:
         return
 
+    rev = False
     if x1 > x2:
         x1, x2 = x2, x1
         y1, y2 = y2, y1
+        rev = True
+    mid = round((x1 + 1 + x2) / 2)
     for x in range(x1 + 1, x2):
         y = int(round(y1 + slope * (x - x1)))
-        if vertical:
-            screen[x][y] = char
+        if rev:
+            c = char if x > mid else char2
         else:
-            screen[y][x] = char
+            c = char if x < mid else char2
+        if vertical:
+            screen[x][y] = c
+        else:
+            screen[y][x] = c
 
 
 def enter_smiles(stdscr, max_y):
@@ -499,9 +511,9 @@ def fill_screen_buffer(state, max_y):
                                          state.scale, conf, state.y_offset,
                                          rows)
             # Only draw if bond type is in our dictionary
-            if bond.GetBondType() in BOND_CHARS:
-                draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
-                          y2)
+            if bond_char := BOND_CHARS.get(bond.GetBondType()):
+                bond_dir_char = BOND_DIR_CHARS.get(bond.GetBondDir(), bond_char)
+                draw_line(screen, bond_char, bond_dir_char, x1, y1, x2, y2)
     except Exception:
         logging.exception("Error drawing bonds")
         # If there's any issue drawing bonds, continue to draw atoms
@@ -784,6 +796,7 @@ def create_molecule_from_smiles(smiles, max_x, max_y):
     if m is not None:
         mol = Chem.RWMol(m)
         AllChem.Compute2DCoords(mol)
+        Chem.WedgeMolBonds(mol, mol.GetConformer())
         box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
         return State(mol=mol, box=box, scale=scale, y_offset=y_offset)
     return None
@@ -1032,8 +1045,8 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
             state.mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
         else:
             # Cursor on bond: insert sidechain between the two atoms
-            connect_sidechain_to_bond(state, bond_atom_pair, start_idx,
-                                      end_idx, cursor_x, cursor_y, max_y)
+            connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
+                                      cursor_x, cursor_y, max_y)
 
         # Compute 2D coordinates for new atoms, keeping original atoms fixed
         compute_coords_with_fixed_atoms(state.mol, start_idx)
@@ -1097,7 +1110,8 @@ def redraw_screen(stdscr,
     stdscr.clear()
 
     # Draw molecule if present
-    if (state.mol is not None and state.box is not None and state.scale is not None):
+    if (state.mol is not None and state.box is not None and
+            state.scale is not None):
         draw_mol(stdscr, state, max_y)
 
     # Draw SMILES at the top if enabled (after molecule so it's on top)
@@ -1184,8 +1198,8 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, state, show_smiles, max_x,
-                          max_y, selection_mode, selection_anchor_x,
+            redraw_screen(stdscr, state, show_smiles, max_x, max_y,
+                          selection_mode, selection_anchor_x,
                           selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
 
