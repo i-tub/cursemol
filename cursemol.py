@@ -641,13 +641,21 @@ def main_loop(stdscr, initial_smiles=None):
                     # Invalid element symbol or other error
                     pass
 
-        # Append atoms from SMILES to atom under cursor
+        # Append atoms from SMILES to atom under cursor or bond
         elif key == ord('a'):
             if mol is not None and box is not None and scale is not None:
                 # Find atom under cursor
                 atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
                                                scale, max_y, y_offset)
-                if atom_idx is not None:
+
+                # Check if on a bond if not on an atom
+                bond_atom_pair = None
+                if atom_idx is None:
+                    # Convert cursor to molecule coordinates
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                    bond_atom_pair = find_bond_atoms(mol, mol_x, mol_y)
+
+                if atom_idx is not None or bond_atom_pair is not None:
                     # Prompt for SMILES
                     sidechain_smiles = enter_smiles(stdscr, max_y)
                     if sidechain_smiles:
@@ -657,12 +665,34 @@ def main_loop(stdscr, initial_smiles=None):
                             if sidechain is not None:
                                 # Get the index where sidechain will start
                                 start_idx = mol.GetNumAtoms()
+                                end_idx = start_idx + sidechain.GetNumAtoms() - 1
 
                                 # Insert sidechain into molecule
                                 mol.InsertMol(sidechain)
 
-                                # Add bond between cursor atom and first sidechain atom
-                                mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
+                                if atom_idx is not None:
+                                    # Cursor on atom: connect to first atom of sidechain
+                                    mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
+                                else:
+                                    # Cursor on bond: insert sidechain between the two atoms
+                                    a1_idx, a2_idx = bond_atom_pair
+
+                                    # Determine which atom is closer to cursor
+                                    conf = mol.GetConformer()
+                                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+
+                                    pos1 = conf.GetAtomPosition(a1_idx)
+                                    pos2 = conf.GetAtomPosition(a2_idx)
+
+                                    dist1 = math.sqrt((pos1.x - mol_x)**2 + (pos1.y - mol_y)**2)
+                                    dist2 = math.sqrt((pos2.x - mol_x)**2 + (pos2.y - mol_y)**2)
+
+                                    if dist1 > dist2:
+                                        a1_idx, a2_idx = a2_idx, a1_idx
+
+                                    # Connect sidechain: a1 -> first atom, a2 -> last atom
+                                    mol.AddBond(a1_idx, start_idx, Chem.BondType.SINGLE)
+                                    mol.AddBond(a2_idx, end_idx, Chem.BondType.SINGLE)
 
                                 # Create coordinate map to keep original atoms fixed
                                 coord_map = {}
