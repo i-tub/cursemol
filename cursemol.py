@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CurseMol - A simple curses-based program for displaying molecules.
+CurseMol - A molecular sketcher for the terminal
 
 Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
@@ -31,7 +31,8 @@ from rdkit import RDLogger
 from rdkit.Chem import AllChem
 
 MIN_SCALE = 2.0  # columns per angstrom
-MAX_SCALE = 10.0  # columns per angstrom
+DEFAULT_SCALE = 8.0  # columns per angstrom
+MAX_SCALE = 16.0  # columns per angstrom
 ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
 
@@ -285,7 +286,7 @@ def calculate_box_and_scale(mol, max_x, max_y):
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate scale to fit the molecule
-    xscale = min((max_x - PADDING * 2) / (xmax - xmin), MAX_SCALE)
+    xscale = min((max_x - PADDING * 2) / (xmax - xmin), DEFAULT_SCALE)
     yscale = xscale * ASPECT_RATIO
     scale = (xscale, yscale)
 
@@ -495,7 +496,7 @@ def main_loop(stdscr, initial_smiles=None):
         box_size = 10.0
         box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
         # Use max scale
-        xscale = MAX_SCALE
+        xscale = DEFAULT_SCALE
         yscale = xscale * ASPECT_RATIO
         scale = (xscale, yscale)
         # Center vertically
@@ -507,9 +508,10 @@ def main_loop(stdscr, initial_smiles=None):
     history = [save_state(mol, box, scale, y_offset)]
     history_index = 0
 
-    # Instructions
+    # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: charge | <>: zoom | u/r: undo/redo | ^L: clean | 0-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del",
+        "+/-: chg | <>: zoom | u/r: undo/redo | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
