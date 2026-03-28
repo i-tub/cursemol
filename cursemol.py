@@ -598,41 +598,39 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
-def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
+def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order):
     """
     Create or adjust bond between two nearest atoms at cursor position.
     bond_order: 1 (single), 2 (double), or 3 (triple)
     Returns True if bond was created/modified, False otherwise.
     """
-    if (history.state.mol is None or history.state.box is None or
-            history.state.scale is None):
+    if state.mol is None or state.box is None or state.scale is None:
         return False
 
     # Find the two atoms that should be bonded (using screen coordinates)
-    atom_pair = find_bond_atoms(history.state, cursor_x, cursor_y, max_y)
+    atom_pair = find_bond_atoms(state, cursor_x, cursor_y, max_y)
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
-        return modify_bond(history.state.mol, atom1_idx, atom2_idx, bond_order)
+        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order)
 
     return False
 
 
-def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
+def adjust_formal_charge(state, cursor_x, cursor_y, max_y, delta):
     """
     Adjust formal charge of atom at cursor position by delta.
     Returns True if charge was adjusted, False if no change or no atom found.
     """
-    if (history.state.mol is None or history.state.box is None or
-            history.state.scale is None):
+    if state.mol is None or state.box is None or state.scale is None:
         return False
 
     if delta == 0:
         return False  # No change requested
 
-    atom_idx = find_atom_at_cursor(history.state, cursor_x, cursor_y, max_y)
+    atom_idx = find_atom_at_cursor(state, cursor_x, cursor_y, max_y)
     if atom_idx is not None:
-        atom = history.state.mol.GetAtomWithIdx(atom_idx)
+        atom = state.mol.GetAtomWithIdx(atom_idx)
         current_charge = atom.GetFormalCharge()
         atom.SetFormalCharge(current_charge + delta)
         return True
@@ -640,16 +638,15 @@ def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
     return False
 
 
-def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
+def delete_atoms_in_rect(state, x1, y1, x2, y2, max_y):
     """
     Delete all atoms whose screen positions fall within the rectangle.
     Returns True if any atoms were deleted, False otherwise.
     """
-    if (history.state.mol is None or history.state.box is None or
-            history.state.scale is None):
+    if state.mol is None or state.box is None or state.scale is None:
         return False
 
-    conf = history.state.mol.GetConformer()
+    conf = state.mol.GetConformer()
     rows = max_y - 2
 
     # Normalize rectangle coordinates
@@ -658,10 +655,9 @@ def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
 
     # Find atoms within the rectangle
     atoms_to_delete = []
-    for atom in history.state.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, history.state.box,
-                                                 history.state.scale, conf,
-                                                 history.state.y_offset, rows)
+    for atom in state.mol.GetAtoms():
+        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
+                                                 conf, state.y_offset, rows)
         if min_x <= screen_x <= max_x and min_y <= screen_y <= max_y_rect:
             atoms_to_delete.append(atom.GetIdx())
 
@@ -669,7 +665,7 @@ def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
     if atoms_to_delete:
         for atom_idx in sorted(atoms_to_delete, reverse=True):
             try:
-                history.state.mol.RemoveAtom(atom_idx)
+                state.mol.RemoveAtom(atom_idx)
             except Exception:
                 logging.exception(f"Error removing atom {atom_idx}")
         return True
@@ -677,30 +673,29 @@ def delete_atoms_in_rect(history, x1, y1, x2, y2, max_y):
     return False
 
 
-def delete_at_cursor(history, cursor_x, cursor_y, max_y):
+def delete_at_cursor(state, cursor_x, cursor_y, max_y):
     """
     Delete atom or bond at cursor position.
     Returns True if something was deleted, False otherwise.
     """
-    if (history.state.mol is None or history.state.box is None or
-            history.state.scale is None):
+    if state.mol is None or state.box is None or state.scale is None:
         return False
 
     # First try to find an atom at cursor
-    atom_idx = find_atom_at_cursor(history.state, cursor_x, cursor_y, max_y)
+    atom_idx = find_atom_at_cursor(state, cursor_x, cursor_y, max_y)
     if atom_idx is not None:
         try:
-            history.state.mol.RemoveAtom(atom_idx)
+            state.mol.RemoveAtom(atom_idx)
             return True
         except Exception:
             logging.exception("Error removing atom (x command)")
             return False
     else:
         # No atom found, try to delete a bond instead
-        atom_pair = find_bond_atoms(history.state, cursor_x, cursor_y, max_y)
+        atom_pair = find_bond_atoms(state, cursor_x, cursor_y, max_y)
         if atom_pair is not None:
             atom1_idx, atom2_idx = atom_pair
-            if modify_bond(history.state.mol, atom1_idx, atom2_idx, 0):
+            if modify_bond(state.mol, atom1_idx, atom2_idx, 0):
                 return True
 
     return False
@@ -758,9 +753,10 @@ def load_smiles(stdscr, max_x, max_y):
     return None
 
 
-def clear_canvas(history, max_y):
+def clear_canvas(state, max_y):
     """
     Clear the canvas and reset to blank slate with default settings.
+    Modifies state in place.
     """
     # Create empty molecule
     mol = Chem.RWMol()
@@ -781,8 +777,11 @@ def clear_canvas(history, max_y):
     available_height = max_y - 2
     y_offset = max(0, (available_height - mol_height) // 2)
 
-    # Update history state
-    history.state = State(mol=mol, box=box, scale=scale, y_offset=y_offset)
+    # Update state in place
+    state.mol = mol
+    state.box = box
+    state.scale = scale
+    state.y_offset = y_offset
 
 
 def show_help(stdscr, max_x):
@@ -811,61 +810,60 @@ def show_help(stdscr, max_x):
     stdscr.getch()  # Wait for any key
 
 
-def shift_view(history, dx_sign, dy_sign):
+def shift_view(state, dx_sign, dy_sign):
     """
     Shift the view (pan the molecule) by one step in the given direction.
     dx_sign, dy_sign: -1, 0, or +1 indicating direction.
     """
-    if history.state.box is None or history.state.scale is None:
+    if state.box is None or state.scale is None:
         return
 
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = history.state.box
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
 
     # Calculate step size based on scale
-    dx = dx_sign / history.state.scale[0] if dx_sign != 0 else 0
-    dy = dy_sign / history.state.scale[1] if dy_sign != 0 else 0
+    dx = dx_sign / state.scale[0] if dx_sign != 0 else 0
+    dy = dy_sign / state.scale[1] if dy_sign != 0 else 0
 
-    history.state.box = ((xmin + dx, ymin + dy, zmin),
-                         (xmax + dx, ymax + dy, zmax))
+    state.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
 
 
-def cleanup_coordinates(history, max_x, max_y):
+def cleanup_coordinates(state, max_x, max_y):
     """
     Regenerate 2D coordinates for the molecule and recenter the view.
     Keeps the current zoom level. Returns True if successful.
     """
-    if history.state.mol is None or history.state.mol.GetNumAtoms() == 0:
+    if state.mol is None or state.mol.GetNumAtoms() == 0:
         return False
 
     try:
-        AllChem.Compute2DCoords(history.state.mol)
-        if history.state.scale is not None:
-            history.state.box, history.state.y_offset = recalculate_box_and_offset(
-                history.state.mol, history.state.scale, max_x, max_y)
+        AllChem.Compute2DCoords(state.mol)
+        if state.scale is not None:
+            state.box, state.y_offset = recalculate_box_and_offset(
+                state.mol, state.scale, max_x, max_y)
         return True
     except Exception:
         logging.exception("Error regenerating coordinates")
         return False
 
 
-def zoom_view(history, max_x, max_y, zoom_factor):
+def zoom_view(state, max_x, max_y, zoom_factor):
     """
     Zoom in or out by the given factor.
     zoom_factor > 1 means zoom in, < 1 means zoom out.
     """
-    if history.state.box is None or history.state.scale is None:
+    if state.box is None or state.scale is None:
         return
 
     # Calculate current center of the box
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = history.state.box
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
     center_x = (xmin + xmax) / 2
     center_y = (ymin + ymax) / 2
 
     # Adjust scale by zoom factor and clamp to limits
-    xscale = history.state.scale[0] * zoom_factor
+    xscale = state.scale[0] * zoom_factor
     xscale = max(MIN_SCALE, min(MAX_SCALE, xscale))
     yscale = xscale * ASPECT_RATIO
-    history.state.scale = (xscale, yscale)
+    state.scale = (xscale, yscale)
 
     # Calculate new box dimensions to show at new scale
     screen_width = max_x - 2 * PADDING
@@ -876,13 +874,13 @@ def zoom_view(history, max_x, max_y, zoom_factor):
     mol_height = screen_height / yscale
 
     # New box centered on the same point
-    history.state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-                         (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+    state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
+                 (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
     # Recalculate y_offset for new scale
     mol_display_height = int(mol_height * yscale + 2 * PADDING)
     available_height = max_y - 2
-    history.state.y_offset = max(0, (available_height - mol_display_height) // 2)
+    state.y_offset = max(0, (available_height - mol_display_height) // 2)
 
 
 def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
@@ -997,7 +995,7 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
 
 
 def redraw_screen(stdscr,
-                  history,
+                  state,
                   show_smiles,
                   instructions,
                   max_x,
@@ -1014,13 +1012,12 @@ def redraw_screen(stdscr,
     stdscr.clear()
 
     # Draw molecule if present
-    if (history.state.mol is not None and history.state.box is not None and
-            history.state.scale is not None):
-        draw_mol(stdscr, history.state, max_y)
+    if state.mol is not None and state.box is not None and state.scale is not None:
+        draw_mol(stdscr, state, max_y)
 
     # Draw SMILES at the top if enabled (after molecule so it's on top)
-    if show_smiles and history.state.mol is not None:
-        current_smiles = get_smiles(history.state.mol)
+    if show_smiles and state.mol is not None:
+        current_smiles = get_smiles(state.mol)
         # Wrap SMILES to screen width
         row = 0
         for i in range(0, len(current_smiles), max_x - 1):
@@ -1109,7 +1106,7 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, history, show_smiles, instructions, max_x,
+            redraw_screen(stdscr, state, show_smiles, instructions, max_x,
                           max_y, selection_mode, selection_anchor_x,
                           selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
@@ -1142,9 +1139,10 @@ def main_loop(stdscr, initial_smiles=None):
         elif selection_mode:
             if key in '\r\n':  # Enter
                 # Delete atoms in selection
-                if delete_atoms_in_rect(history, selection_anchor_x,
+                if delete_atoms_in_rect(state, selection_anchor_x,
                                         selection_anchor_y, cursor_x, cursor_y,
                                         max_y):
+                    history.state = state
                     history.save_to_history()
                 selection_mode = False
                 selection_anchor_x = None
@@ -1158,33 +1156,34 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
             elif key == 'q':
                 # Allow quitting from selection mode
-                return get_smiles(history.state.mol)
+                return get_smiles(state.mol)
             # Ignore all other keys in selection mode
             continue
 
         # Shift molecule (move all atoms)
         elif key == 'K':  # shift up
-            shift_view(history, 0, -1)
+            shift_view(state, 0, -1)
             need_redraw = True
 
         elif key == 'H':  # shift left
-            shift_view(history, 1, 0)
+            shift_view(state, 1, 0)
             need_redraw = True
 
         elif key == 'J':  # shift down
-            shift_view(history, 0, 1)
+            shift_view(state, 0, 1)
             need_redraw = True
 
         elif key == 'L':  # shift right
-            shift_view(history, -1, 0)
+            shift_view(state, -1, 0)
             need_redraw = True
 
         # Enter SMILES string
         elif key == 's':
             result = load_smiles(stdscr, max_x, max_y)
             if result is not None:
-                with history:
-                    history.state = result
+                state = result
+                history.state = state
+                history.save_to_history()
 
             # Always redraw to clear the prompt
             need_redraw = True
@@ -1196,49 +1195,49 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
-            if (history.state.mol is not None and history.state.box is not None and
-                    history.state.scale is not None):
-                result = insert_or_modify_atom(stdscr, history.state,
+            if state.mol is not None and state.box is not None and state.scale is not None:
+                result = insert_or_modify_atom(stdscr, state,
                                                cursor_x, cursor_y, max_y)
                 if result is not None:
-                    with history:
-                        history.state.mol = result
+                    state.mol = result
+                    history.state = state
+                    history.save_to_history()
 
                 # Always redraw to clear the prompt
                 need_redraw = True
 
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
-            if (history.state.mol is not None and history.state.box is not None and
-                    history.state.scale is not None):
+            if state.mol is not None and state.box is not None and state.scale is not None:
                 symbol = key.upper()
-                result = insert_or_modify_atom(stdscr, history.state,
+                result = insert_or_modify_atom(stdscr, state,
                                                cursor_x, cursor_y, max_y,
                                                symbol)
                 if result is not None:
-                    with history:
-                        history.state.mol = result
-
+                    state.mol = result
+                    history.state = state
+                    history.save_to_history()
                     need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
-            if (history.state.mol is not None and history.state.box is not None and
-                    history.state.scale is not None):
-                result = append_smiles_fragment(stdscr, history.state,
+            if state.mol is not None and state.box is not None and state.scale is not None:
+                result = append_smiles_fragment(stdscr, state,
                                                 cursor_x, cursor_y, max_x, max_y)
                 if result is not None:
-                    with history:
-                        history.state = result
+                    state = result
+                    history.state = state
+                    history.save_to_history()
 
                 # Always redraw to clear the prompt
                 need_redraw = True
 
         # Delete atom or bond at cursor position
         elif key == 'x':
-            with history:
-                if delete_at_cursor(history, cursor_x, cursor_y, max_y):
-                    need_redraw = True
+            if delete_at_cursor(state, cursor_x, cursor_y, max_y):
+                history.state = state
+                history.save_to_history()
+                need_redraw = True
 
         # Enter area delete (selection) mode
         elif key == 'X':
@@ -1249,55 +1248,61 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Increase formal charge
         elif key == '+':
-            with history:
-                if adjust_formal_charge(history, cursor_x, cursor_y, max_y, 1):
-                    need_redraw = True
+            if adjust_formal_charge(state, cursor_x, cursor_y, max_y, 1):
+                history.state = state
+                history.save_to_history()
+                need_redraw = True
 
         # Decrease formal charge
         elif key == '-':
-            with history:
-                if adjust_formal_charge(history, cursor_x, cursor_y, max_y, -1):
-                    need_redraw = True
+            if adjust_formal_charge(state, cursor_x, cursor_y, max_y, -1):
+                history.state = state
+                history.save_to_history()
+                need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == '\x0c':  # Ctrl-L
-            with history:
-                if cleanup_coordinates(history, max_x, max_y):
-                    need_redraw = True
-                    pass
+            if cleanup_coordinates(state, max_x, max_y):
+                history.state = state
+                history.save_to_history()
+                need_redraw = True
 
         # Zoom out
         elif key == '<':
-            zoom_view(history, max_x, max_y, 1.0 / 1.2)
+            zoom_view(state, max_x, max_y, 1.0 / 1.2)
             need_redraw = True
 
         # Zoom in
         elif key == '>':
-            zoom_view(history, max_x, max_y, 1.2)
+            zoom_view(state, max_x, max_y, 1.2)
             need_redraw = True
 
         # Add/modify/delete bond
         elif key in ['1', '2', '3']:
             bond_order = int(key)
-            if create_or_adjust_bond(history, cursor_x, cursor_y, max_y,
+            if create_or_adjust_bond(state, cursor_x, cursor_y, max_y,
                                      bond_order):
+                history.state = state
                 history.save_to_history()
                 need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == '@':
-            with history:
-                clear_canvas(history, max_y)
+            clear_canvas(state, max_y)
+            history.state = state
+            history.save_to_history()
             need_redraw = True
 
         # Undo
         elif key == 'u':
             if history.undo():
+                state = history.state
                 need_redraw = True
 
         # Redo
         elif key == 'r':
             if history.redo():
+                state = history.state
                 need_redraw = True
 
         # Help
@@ -1307,7 +1312,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Quit
         elif key == 'q':
-            return get_smiles(history.state.mol)
+            return get_smiles(state.mol)
 
 
 def main():
