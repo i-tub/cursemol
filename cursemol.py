@@ -1064,20 +1064,24 @@ def main_loop(stdscr, initial_smiles=None):
         # Get user input
         key = stdscr.getch()
 
+        # Convert printable characters to string for easier comparison
+        if 32 <= key <= 126:
+            key = chr(key)
+
         # Handle movement (vi-style) - works in both normal and selection mode
-        if key == ord('h'):  # left
+        if key == 'h':  # left
             cursor_x = max(0, cursor_x - 1)
             if selection_mode:
                 need_redraw = True
-        elif key == ord('j'):  # down
+        elif key == 'j':  # down
             cursor_y = min(max_y - 1, cursor_y + 1)
             if selection_mode:
                 need_redraw = True
-        elif key == ord('k'):  # up
+        elif key == 'k':  # up
             cursor_y = max(0, cursor_y - 1)
             if selection_mode:
                 need_redraw = True
-        elif key == ord('l'):  # right
+        elif key == 'l':  # right
             cursor_x = min(max_x - 1, cursor_x + 1)
             if selection_mode:
                 need_redraw = True
@@ -1099,31 +1103,31 @@ def main_loop(stdscr, initial_smiles=None):
                 selection_anchor_x = None
                 selection_anchor_y = None
                 need_redraw = True
-            elif key == ord('q'):
+            elif key == 'q':
                 # Allow quitting from selection mode
                 return get_smiles(history.mol)
             # Ignore all other keys in selection mode
             continue
 
         # Shift molecule (move all atoms)
-        elif key == ord('K'):  # shift up
+        elif key == 'K':  # shift up
             shift_view(history, 0, -1)
             need_redraw = True
 
-        elif key == ord('H'):  # shift left
+        elif key == 'H':  # shift left
             shift_view(history, 1, 0)
             need_redraw = True
 
-        elif key == ord('J'):  # shift down
+        elif key == 'J':  # shift down
             shift_view(history, 0, 1)
             need_redraw = True
 
-        elif key == ord('L'):  # shift right
+        elif key == 'L':  # shift right
             shift_view(history, -1, 0)
             need_redraw = True
 
         # Enter SMILES string
-        elif key == ord('s'):
+        elif key == 's':
             result = load_smiles(stdscr, max_x, max_y)
             if result is not None:
                 with history:
@@ -1133,12 +1137,12 @@ def main_loop(stdscr, initial_smiles=None):
             need_redraw = True
 
         # Toggle SMILES display
-        elif key == ord('S'):
+        elif key == 'S':
             show_smiles = not show_smiles
             need_redraw = True
 
         # Insert atom at cursor position or change atom symbol
-        elif key == ord('i'):
+        elif key == 'i':
             if history.mol is not None and history.box is not None and history.scale is not None:
                 result = insert_or_modify_atom(stdscr, history.mol, history.box,
                                                history.scale, history.y_offset,
@@ -1151,9 +1155,9 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
 
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
-        elif key in [ord('c'), ord('n'), ord('o')]:
+        elif key in ['c', 'n', 'o']:
             if history.mol is not None and history.box is not None and history.scale is not None:
-                symbol = chr(key).upper()
+                symbol = key.upper()
                 result = insert_or_modify_atom(stdscr, history.mol, history.box,
                                                history.scale, history.y_offset,
                                                cursor_x, cursor_y, max_y,
@@ -1165,7 +1169,7 @@ def main_loop(stdscr, initial_smiles=None):
                     need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
-        elif key == ord('a'):
+        elif key == 'a':
             if history.mol is not None and history.box is not None and history.scale is not None:
                 result = append_smiles_fragment(stdscr, history.mol,
                                                 history.box, history.scale,
@@ -1179,26 +1183,26 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
 
         # Delete atom or bond at cursor position
-        elif key == ord('x'):
+        elif key == 'x':
             with history:
                 if delete_at_cursor(history, cursor_x, cursor_y, max_y):
                     need_redraw = True
 
         # Enter area delete (selection) mode
-        elif key == ord('X'):
+        elif key == 'X':
             selection_mode = True
             selection_anchor_x = cursor_x
             selection_anchor_y = cursor_y
             need_redraw = True
 
         # Increase formal charge
-        elif key == ord('+'):
+        elif key == '+':
             with history:
                 if adjust_formal_charge(history, cursor_x, cursor_y, max_y, 1):
                     need_redraw = True
 
         # Decrease formal charge
-        elif key == ord('-'):
+        elif key == '-':
             with history:
                 if adjust_formal_charge(history, cursor_x, cursor_y, max_y, -1):
                     need_redraw = True
@@ -1211,41 +1215,41 @@ def main_loop(stdscr, initial_smiles=None):
                     pass
 
         # Zoom out
-        elif key == ord('<'):
+        elif key == '<':
             zoom_view(history, max_x, max_y, 1.0 / 1.2)
             need_redraw = True
 
         # Zoom in
-        elif key == ord('>'):
+        elif key == '>':
             zoom_view(history, max_x, max_y, 1.2)
             need_redraw = True
 
         # Add/modify/delete bond
-        elif key in [ord('1'), ord('2'), ord('3')]:
-            bond_order = int(chr(key))
+        elif key in ['1', '2', '3']:
+            bond_order = int(key)
             if create_or_adjust_bond(history, cursor_x, cursor_y, max_y,
                                      bond_order):
                 history.save_to_history()
                 need_redraw = True
 
         # Clear canvas (reset to blank slate)
-        elif key == ord('@'):
+        elif key == '@':
             with history:
                 clear_canvas(history, max_y)
             need_redraw = True
 
         # Undo
-        elif key == ord('u'):
+        elif key == 'u':
             if history.undo():
                 need_redraw = True
 
         # Redo
-        elif key == ord('r'):
+        elif key == 'r':
             if history.redo():
                 need_redraw = True
 
         # Help
-        elif key == ord('?'):
+        elif key == '?':
             stdscr.clear()
             # Display the help text from the docstring
             help_text = __doc__.strip()
@@ -1270,7 +1274,7 @@ def main_loop(stdscr, initial_smiles=None):
             need_redraw = True
 
         # Quit
-        elif key == ord('q'):
+        elif key == 'q':
             return get_smiles(history.mol)
 
 
