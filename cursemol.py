@@ -633,25 +633,34 @@ def main_loop(stdscr, initial_smiles=None):
             show_smiles = not show_smiles
             need_redraw = True
 
-        # Insert atom at cursor position
+        # Insert atom at cursor position or change atom symbol
         elif key == ord('i'):
             if mol is not None and box is not None and scale is not None:
+                # Check if cursor is on an atom
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
+
                 symbol = enter_element(stdscr, max_y)
                 if symbol:
                     try:
                         # Truncate future history
                         history = history[:history_index + 1]
 
-                        # Add atom to molecule
-                        atom_idx = mol.AddAtom(Chem.Atom(symbol))
+                        if atom_idx is not None:
+                            # Change existing atom's symbol
+                            atom = mol.GetAtomWithIdx(atom_idx)
+                            atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(symbol))
+                        else:
+                            # Add new atom to molecule
+                            atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
-                        # Convert cursor position to molecule coordinates
-                        mol_x, mol_y = screen_to_mol_coords(
-                            cursor_x, cursor_y, box, scale, max_y, y_offset)
+                            # Convert cursor position to molecule coordinates
+                            mol_x, mol_y = screen_to_mol_coords(
+                                cursor_x, cursor_y, box, scale, max_y, y_offset)
 
-                        # Set atom position in conformer
-                        conf = mol.GetConformer()
-                        conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+                            # Set atom position in conformer
+                            conf = mol.GetConformer()
+                            conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
 
                         # Save new state to history
                         history.append(save_state(mol, box, scale, y_offset))
@@ -663,24 +672,33 @@ def main_loop(stdscr, initial_smiles=None):
                         # Invalid element symbol or other error
                         pass
 
-        # Insert common atoms (c, n, o) - shortcuts
+        # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in [ord('c'), ord('n'), ord('o')]:
             if mol is not None and box is not None and scale is not None:
+                # Check if cursor is on an atom
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
+
                 symbol = chr(key).upper()
                 try:
                     # Truncate future history
                     history = history[:history_index + 1]
 
-                    # Add atom to molecule
-                    atom_idx = mol.AddAtom(Chem.Atom(symbol))
+                    if atom_idx is not None:
+                        # Change existing atom's symbol
+                        atom = mol.GetAtomWithIdx(atom_idx)
+                        atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(symbol))
+                    else:
+                        # Add new atom to molecule
+                        atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
-                    # Convert cursor position to molecule coordinates
-                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
-                                                        scale, max_y, y_offset)
+                        # Convert cursor position to molecule coordinates
+                        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
+                                                            scale, max_y, y_offset)
 
-                    # Set atom position in conformer
-                    conf = mol.GetConformer()
-                    conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+                        # Set atom position in conformer
+                        conf = mol.GetConformer()
+                        conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
 
                     # Save new state to history
                     history.append(save_state(mol, box, scale, y_offset))
