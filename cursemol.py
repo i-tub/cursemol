@@ -176,7 +176,8 @@ def find_atom_at_cursor(mol,
     return None
 
 
-def find_bond_atoms_screen(mol, cursor_x, cursor_y, box, scale, max_y, y_offset):
+def find_bond_atoms_screen(mol, cursor_x, cursor_y, box, scale, max_y,
+                           y_offset):
     """
     Find the two atoms closest to cursor position such that
     the cursor is roughly between them (angle >= 160 degrees).
@@ -192,7 +193,8 @@ def find_bond_atoms_screen(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
     # Calculate screen positions and distances for all atoms
     distances = []
     for atom in mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
+        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf,
+                                                 y_offset, rows)
         dx = screen_x - cursor_x
         dy = screen_y - cursor_y
         dist = math.sqrt(dx * dx + dy * dy)
@@ -539,7 +541,8 @@ class UndoHistory:
     def save_to_history(self):
         """Truncate future history and save current state."""
         self._history = self._history[:self._index + 1]
-        self._history.append(save_state(self.mol, self.box, self.scale, self.y_offset))
+        self._history.append(
+            save_state(self.mol, self.box, self.scale, self.y_offset))
         self._index = len(self._history) - 1
 
 
@@ -606,8 +609,8 @@ def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
 
     # Find the two atoms that should be bonded (using screen coordinates)
     atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
-                                       history.box, history.scale,
-                                       max_y, history.y_offset)
+                                       history.box, history.scale, max_y,
+                                       history.y_offset)
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
@@ -627,9 +630,8 @@ def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
     if delta == 0:
         return False  # No change requested
 
-    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
-                                   history.box, history.scale,
-                                   max_y, history.y_offset)
+    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y, history.box,
+                                   history.scale, max_y, history.y_offset)
     if atom_idx is not None:
         atom = history.mol.GetAtomWithIdx(atom_idx)
         current_charge = atom.GetFormalCharge()
@@ -648,9 +650,8 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
         return False
 
     # First try to find an atom at cursor
-    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
-                                   history.box, history.scale,
-                                   max_y, history.y_offset)
+    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y, history.box,
+                                   history.scale, max_y, history.y_offset)
     if atom_idx is not None:
         try:
             history.mol.RemoveAtom(atom_idx)
@@ -661,8 +662,8 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     else:
         # No atom found, try to delete a bond instead
         atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
-                                           history.box, history.scale,
-                                           max_y, history.y_offset)
+                                           history.box, history.scale, max_y,
+                                           history.y_offset)
         if atom_pair is not None:
             atom1_idx, atom2_idx = atom_pair
             if modify_bond(history.mol, atom1_idx, atom2_idx, 0):
@@ -806,8 +807,8 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
     # Check if on a bond if not on an atom
     bond_atom_pair = None
     if atom_idx is None:
-        bond_atom_pair = find_bond_atoms_screen(mol, cursor_x, cursor_y,
-                                                box, scale, max_y, y_offset)
+        bond_atom_pair = find_bond_atoms_screen(mol, cursor_x, cursor_y, box,
+                                                scale, max_y, y_offset)
 
     if atom_idx is not None or bond_atom_pair is not None:
         # Prompt for SMILES
@@ -862,7 +863,8 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
                     AllChem.Compute2DCoords(mol, coordMap=coord_map)
 
                     # Update box to show all atoms while keeping same scale
-                    box, y_offset = recalculate_box_and_offset(mol, scale, max_x, max_y)
+                    box, y_offset = recalculate_box_and_offset(
+                        mol, scale, max_x, max_y)
 
                     return mol, box, scale, y_offset
             except Exception as e:
@@ -898,8 +900,7 @@ def redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y):
     # Draw instructions at the bottom
     for i, line in enumerate(instructions):
         try:
-            stdscr.addstr(max_y - len(instructions) + i, 0,
-                          line[:max_x - 1])
+            stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x - 1])
         except curses.error:
             pass
 
@@ -970,7 +971,8 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, history, show_smiles, instructions, max_x, max_y)
+            redraw_screen(stdscr, history, show_smiles, instructions, max_x,
+                          max_y)
             need_redraw = False
 
         # Move cursor to current position
@@ -1105,7 +1107,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Add/modify/delete bond
         elif key in [ord('1'), ord('2'), ord('3')]:
             bond_order = int(chr(key))
-            if create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
+            if create_or_adjust_bond(history, cursor_x, cursor_y, max_y,
+                                     bond_order):
                 history.save_to_history()
                 need_redraw = True
 
