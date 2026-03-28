@@ -62,6 +62,13 @@ ELEMENT_COLORS = {
     'I': 4,  # Green
 }
 
+# Instructions (try to keep lines under 80 characters and more or less
+# balanced)
+INSTRUCTIONS = [
+    "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
+    "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 1-3: bond | @: clear | ?: help"
+]
+
 
 @dataclass
 class State:
@@ -1073,7 +1080,6 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
 def redraw_screen(stdscr,
                   state,
                   show_smiles,
-                  instructions,
                   max_x,
                   max_y,
                   selection_mode=False,
@@ -1082,13 +1088,12 @@ def redraw_screen(stdscr,
                   cursor_x=None,
                   cursor_y=None):
     """
-    Redraw the entire screen with molecule, SMILES, instructions, and optional
-    selection.
+    Redraw the entire screen with molecule, SMILES, and optional selection.
     """
     stdscr.clear()
 
     # Draw molecule if present
-    if state.mol is not None and state.box is not None and state.scale is not None:
+    if (state.mol is not None and state.box is not None and state.scale is not None):
         draw_mol(stdscr, state, max_y)
 
     # Draw SMILES at the top if enabled (after molecule so it's on top)
@@ -1111,9 +1116,9 @@ def redraw_screen(stdscr,
                             cursor_x, cursor_y, max_x, max_y)
 
     # Draw instructions at the bottom
-    for i, line in enumerate(instructions):
+    for i, line in enumerate(INSTRUCTIONS):
         try:
-            stdscr.addstr(max_y - len(instructions) + i, 0, line[:max_x - 1])
+            stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
         except curses.error:
             pass
 
@@ -1164,13 +1169,6 @@ def main_loop(stdscr, initial_smiles=None):
     # Undo/redo history
     history = UndoHistory(state)
 
-    # Instructions (try to keep lines under 80 characters and more or less
-    # balanced)
-    instructions = [
-        "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
-        "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 1-3: bond | @: clear | ?: help"
-    ]
-
     # Track when we need to redraw the entire screen
     need_redraw = True
 
@@ -1182,7 +1180,7 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, state, show_smiles, instructions, max_x,
+            redraw_screen(stdscr, state, show_smiles, max_x,
                           max_y, selection_mode, selection_anchor_x,
                           selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
