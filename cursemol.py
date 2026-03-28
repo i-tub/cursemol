@@ -176,40 +176,46 @@ def find_atom_at_cursor(mol,
     return None
 
 
-def find_bond_atoms(mol, pos_x, pos_y):
+def find_bond_atoms_screen(mol, cursor_x, cursor_y, box, scale, max_y, y_offset):
     """
-    Find the two closest atoms to position (pos_x, pos_y) such that
-    the angle atom1-pos-atom2 is at least 160 degrees.
+    Find the two atoms closest to cursor position such that
+    the cursor is roughly between them (angle >= 160 degrees).
+    Uses screen coordinates to avoid floating point precision issues.
     Returns (atom1_idx, atom2_idx) or None if no valid pair found.
     """
     if mol.GetNumAtoms() < 2:
         return None
 
     conf = mol.GetConformer()
+    rows = max_y - 2
 
-    # Calculate distances from all atoms to the cursor position
+    # Calculate screen positions and distances for all atoms
     distances = []
     for atom in mol.GetAtoms():
-        atom_pos = conf.GetAtomPosition(atom.GetIdx())
-        dx = atom_pos.x - pos_x
-        dy = atom_pos.y - pos_y
+        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
+        dx = screen_x - cursor_x
+        dy = screen_y - cursor_y
         dist = math.sqrt(dx * dx + dy * dy)
-        distances.append((dist, atom.GetIdx(), atom_pos.x, atom_pos.y))
+        distances.append((dist, atom.GetIdx(), screen_x, screen_y))
 
     # Sort by distance
     distances.sort()
 
-    # Check pairs of closest atoms
+    # Find all valid pairs and choose the one with smallest combined distance
+    best_pair = None
+    best_distance_sum = float('inf')
+
     for i in range(len(distances)):
+        dist1, idx1, x1, y1 = distances[i]
+
         for j in range(i + 1, len(distances)):
-            _, idx1, x1, y1 = distances[i]
-            _, idx2, x2, y2 = distances[j]
+            dist2, idx2, x2, y2 = distances[j]
 
             # Calculate vectors from cursor position to each atom
-            v1_x = x1 - pos_x
-            v1_y = y1 - pos_y
-            v2_x = x2 - pos_x
-            v2_y = y2 - pos_y
+            v1_x = x1 - cursor_x
+            v1_y = y1 - cursor_y
+            v2_x = x2 - cursor_x
+            v2_y = y2 - cursor_y
 
             # Calculate lengths
             len1 = math.sqrt(v1_x * v1_x + v1_y * v1_y)
@@ -223,11 +229,20 @@ def find_bond_atoms(mol, pos_x, pos_y):
             cos_angle = dot / (len1 * len2)
             angle_deg = math.degrees(math.acos(max(-1.0, min(1.0, cos_angle))))
 
-            # If angle is at least 160 degrees, we found our pair
-            if angle_deg >= 140:
-                return (idx1, idx2)
+            # If angle is at least 160 degrees, this is a valid pair
+            if angle_deg >= 160:
+                # Calculate distance between the two atoms on screen
+                atom_dist = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-    return None
+                # Score: prefer pairs where cursor is close to both atoms
+                # AND the atoms themselves are close to each other
+                score = dist1 + dist2 + atom_dist
+
+                if score < best_distance_sum:
+                    best_distance_sum = score
+                    best_pair = (idx1, idx2)
+
+    return best_pair
 
 
 def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
@@ -573,13 +588,10 @@ def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
     if history.mol is None or history.box is None or history.scale is None:
         return False
 
-    # Convert cursor position to molecule coordinates
-    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                        history.box, history.scale,
-                                        max_y, history.y_offset)
-
-    # Find the two atoms that should be bonded
-    atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
+    # Find the two atoms that should be bonded (using screen coordinates)
+    atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
+                                       history.box, history.scale,
+                                       max_y, history.y_offset)
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
@@ -629,11 +641,9 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
             return False
     else:
         # No atom found, try to delete a bond instead
-        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                            history.box,
-                                            history.scale, max_y,
-                                            history.y_offset)
-        atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
+        atom_pair = find_bond_atoms_screen(history.mol, cursor_x, cursor_y,
+                                           history.box, history.scale,
+                                           max_y, history.y_offset)
         if atom_pair is not None:
             atom1_idx, atom2_idx = atom_pair
             if modify_bond(history.mol, atom1_idx, atom2_idx, 0):
@@ -728,10 +738,8 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
     # Check if on a bond if not on an atom
     bond_atom_pair = None
     if atom_idx is None:
-        # Convert cursor to molecule coordinates
-        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale,
-                                            max_y, y_offset)
-        bond_atom_pair = find_bond_atoms(mol, mol_x, mol_y)
+        bond_atom_pair = find_bond_atoms_screen(mol, cursor_x, cursor_y,
+                                                box, scale, max_y, y_offset)
 
     if atom_idx is not None or bond_atom_pair is not None:
         # Prompt for SMILES
@@ -1109,7 +1117,7 @@ def main():
     logging.basicConfig(
         filename='cursemol.log',
         filemode='w',  # Truncate on open
-        level=logging.ERROR,
+        level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Silence RDKit warnings
