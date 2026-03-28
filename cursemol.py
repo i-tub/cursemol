@@ -37,10 +37,13 @@ def get_box(conf):
     return (xyz.min(axis=0), xyz.max(axis=0))
 
 
-def int_coords_for_atom(atom, box, scale, conf, y_offset=0):
+def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - box[0][0]) * scale[0])
-    y = PADDING + y_offset + int((pos.y - box[0][1]) * scale[1])
+    # Flip y coordinate so molecules appear right-side up (not reversed)
+    # Higher molecule y -> lower screen y (closer to top)
+    y_from_bottom = PADDING + y_offset + int((pos.y - box[0][1]) * scale[1])
+    y = rows - 1 - y_from_bottom
     return x, y
 
 
@@ -108,17 +111,16 @@ def enter_element(stdscr, max_y):
 
 def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
-    # Screen array has (max_y - 2) rows, displayed reversed
+    # Screen array has (max_y - 2) rows
     rows = max_y - 2
 
-    # Convert terminal position to screen array position
-    # Terminal row 0 → screen row (rows-1), terminal row 1 → screen row (rows-2), etc.
-    screen_y = rows - 1 - cursor_y
-
+    # Terminal position is now directly the screen array position
     # Reverse the coordinate transformation from int_coords_for_atom
-    # Account for y_offset
     mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
-    mol_y = (screen_y - PADDING - y_offset) / scale[1] + box[0][1]
+
+    # Reverse the y flipping: cursor_y -> y_from_bottom -> mol_y
+    y_from_bottom = rows - 1 - cursor_y
+    mol_y = (y_from_bottom - PADDING - y_offset) / scale[1] + box[0][1]
 
     return mol_x, mol_y
 
@@ -132,18 +134,16 @@ def find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset, to
         return None
 
     conf = mol.GetConformer()
+    rows = max_y - 2
 
     # Check atoms to find one whose screen position is within tolerance
     for atom in mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset)
+        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
 
-        # Convert screen array position to terminal position
-        rows = max_y - 2
-        terminal_y = rows - 1 - screen_y
-
+        # Screen position is now directly the terminal position
         # Check if within tolerance
         if (abs(screen_x - cursor_x) <= tolerance and
-            abs(terminal_y - cursor_y) <= tolerance):
+            abs(screen_y - cursor_y) <= tolerance):
             return atom.GetIdx()
 
     return None
@@ -296,9 +296,9 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     try:
         for bond in mol.GetBonds():
             x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), box, scale, conf,
-                                         y_offset)
+                                         y_offset, rows)
             x2, y2 = int_coords_for_atom(bond.GetEndAtom(), box, scale, conf,
-                                         y_offset)
+                                         y_offset, rows)
             # Only draw if bond type is in our dictionary
             if bond.GetBondType() in BOND_CHARS:
                 draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
@@ -308,14 +308,38 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
         pass
 
     for atom in mol.GetAtoms():
-        x, y = int_coords_for_atom(atom, box, scale, conf, y_offset)
+        x, y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
         sym = atom.GetSymbol()
         for i, c in enumerate(sym):
             # Bounds check to avoid IndexError
             if 0 <= y < rows and 0 <= x + i < cols:
                 screen[y][x + i] = c
 
-    for i, line in enumerate(reversed(screen)):
+        # Draw formal charge if non-zero
+        charge = atom.GetFormalCharge()
+        if charge != 0:
+            # Format charge string
+            if charge == 1:
+                charge_str = "+"
+            elif charge == -1:
+                charge_str = "-"
+            elif charge > 0:
+                charge_str = f"{charge}+"
+            else:  # charge < 0
+                charge_str = f"{abs(charge)}-"
+
+            # Position: one cell above, one cell to the right of the symbol
+            # (accounts for symbol length - e.g., "Cl" vs "C")
+            charge_x = x + len(sym)
+            charge_y = y - 1
+
+            # Draw charge string
+            for i, c in enumerate(charge_str):
+                if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
+                    screen[charge_y][charge_x + i] = c
+
+    # Display screen without reversing (coordinates are already correct)
+    for i, line in enumerate(screen):
         try:
             stdscr.addstr(i, 0, ''.join(line))
         except curses.error:
@@ -330,8 +354,8 @@ def main_loop(stdscr, initial_smiles=None):
     # Get screen dimensions
     max_y, max_x = stdscr.getmaxyx()
 
-    # Starting cursor position
-    cursor_y, cursor_x = 0, 0
+    # Starting cursor position (center of screen)
+    cursor_y, cursor_x = max_y // 2, max_x // 2
 
     # SMILES string storage
     smiles = initial_smiles or ""
