@@ -15,6 +15,7 @@ Controls:
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
   1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
+  @          - Clear canvas (reset to blank slate)
   u          - Undo
   r          - Redo
   Ctrl-L     - Cleanup/regenerate coordinates
@@ -514,8 +515,8 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del",
-        "+/-: chg | <>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: chg",
+        "<>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | @: clear | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -1029,6 +1030,34 @@ def main_loop(stdscr, initial_smiles=None):
                         history_index = len(history) - 1
 
                         need_redraw = True
+
+        # Clear canvas (reset to blank slate)
+        elif key == ord('@'):
+            # Truncate future history
+            history = history[:history_index + 1]
+
+            # Create empty molecule
+            mol = Chem.RWMol()
+            conf = Chem.Conformer()
+            mol.AddConformer(conf)
+
+            # Default box: 20 angstroms centered at origin
+            box_size = 10.0
+            box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
+            # Use default scale
+            xscale = DEFAULT_SCALE
+            yscale = xscale * ASPECT_RATIO
+            scale = (xscale, yscale)
+            # Center vertically
+            mol_height = int(2 * box_size * yscale + 2 * PADDING)
+            available_height = max_y - 2
+            y_offset = max(0, (available_height - mol_height) // 2)
+
+            # Save new state to history
+            history.append(save_state(mol, box, scale, y_offset))
+            history_index = len(history) - 1
+
+            need_redraw = True
 
         # Undo
         elif key == ord('u'):
