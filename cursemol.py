@@ -940,8 +940,8 @@ def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
 
     # Determine which atom is closer to cursor
     conf = state.mol.GetConformer()
-    mol_x, mol_y = screen_to_mol_coords(
-        cursor_x, cursor_y, state.box, state.scale, max_y, state.y_offset)
+    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, state.box,
+                                        state.scale, max_y, state.y_offset)
 
     pos1 = conf.GetAtomPosition(a1_idx)
     pos2 = conf.GetAtomPosition(a2_idx)
@@ -973,55 +973,57 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
     if atom_idx is None:
         bond_atom_pair = find_bond_atoms(state, cursor_x, cursor_y, max_y)
 
-    if atom_idx is not None or bond_atom_pair is not None:
-        # Prompt for SMILES
-        sidechain_smiles = enter_smiles(stdscr, max_y)
-        if sidechain_smiles:
-            try:
-                # Create sidechain molecule
-                sidechain = Chem.MolFromSmiles(sidechain_smiles)
-                if sidechain is not None:
-                    # Get the index where sidechain will start
-                    start_idx = state.mol.GetNumAtoms()
-                    end_idx = start_idx + sidechain.GetNumAtoms() - 1
+    if atom_idx is None and bond_atom_pair is None:
+        return None  # Nothing to do
 
-                    # Insert sidechain into molecule
-                    state.mol.InsertMol(sidechain)
+    # Prompt for SMILES
+    sidechain_smiles = enter_smiles(stdscr, max_y)
+    if sidechain_smiles is None:
+        return None  # Nothing to do
 
-                    if atom_idx is not None:
-                        # Cursor on atom: connect to first atom of sidechain
-                        state.mol.AddBond(atom_idx, start_idx,
-                                          Chem.BondType.SINGLE)
-                    else:
-                        # Cursor on bond: insert sidechain between the two atoms
-                        connect_sidechain_to_bond(state, bond_atom_pair,
-                                                  start_idx, end_idx,
-                                                  cursor_x, cursor_y, max_y)
+    try:
+        # Create sidechain molecule
+        sidechain = Chem.MolFromSmiles(sidechain_smiles)
+        if sidechain is None:
+            return None  # Bad SMILES
 
-                    # Create coordinate map to keep original atoms fixed
-                    coord_map = {}
-                    conf = state.mol.GetConformer()
-                    for i in range(start_idx):
-                        pos = conf.GetAtomPosition(i)
-                        coord_map[i] = Geometry.Point2D(pos.x, pos.y)
+        # Get the index where sidechain will start
+        start_idx = state.mol.GetNumAtoms()
+        end_idx = start_idx + sidechain.GetNumAtoms() - 1
 
-                    # Compute 2D coordinates for new atoms only
-                    AllChem.Compute2DCoords(state.mol, coordMap=coord_map)
+        # Insert sidechain into molecule
+        state.mol.InsertMol(sidechain)
 
-                    # Update box to show all atoms while keeping same scale
-                    box, y_offset = recalculate_box_and_offset(
-                        state.mol, state.scale, max_x, max_y)
+        if atom_idx is not None:
+            # Cursor on atom: connect to first atom of sidechain
+            state.mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
+        else:
+            # Cursor on bond: insert sidechain between the two atoms
+            connect_sidechain_to_bond(state, bond_atom_pair, start_idx,
+                                      end_idx, cursor_x, cursor_y, max_y)
 
-                    return State(mol=state.mol,
-                                 box=box,
-                                 scale=state.scale,
-                                 y_offset=y_offset)
-            except Exception as e:
-                logging.exception("Error appending atoms (a command)")
-                # Error appending atoms
-                pass
+        # Create coordinate map to keep original atoms fixed
+        coord_map = {}
+        conf = state.mol.GetConformer()
+        for i in range(start_idx):
+            pos = conf.GetAtomPosition(i)
+            coord_map[i] = Geometry.Point2D(pos.x, pos.y)
 
-    return None
+        # Compute 2D coordinates for new atoms only
+        AllChem.Compute2DCoords(state.mol, coordMap=coord_map)
+
+        # Update box to show all atoms while keeping same scale
+        box, y_offset = recalculate_box_and_offset(state.mol, state.scale,
+                                                   max_x, max_y)
+
+        return State(mol=state.mol,
+                     box=box,
+                     scale=state.scale,
+                     y_offset=y_offset)
+    except Exception as e:
+        logging.exception("Error appending atoms (a command)")
+        # Error appending atoms
+        return None
 
 
 def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
