@@ -10,6 +10,7 @@ Controls:
   C, N, O    - Insert carbon/nitrogen/oxygen atom (shortcuts)
   x          - Delete atom or bond at cursor position
   +, -       - Increase/decrease formal charge on atom
+  <, >       - Zoom out/in
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
   Ctrl-L     - Cleanup/regenerate coordinates
   q          - Quit
@@ -22,6 +23,7 @@ from rdkit import Chem
 from rdkit import RDLogger
 from rdkit.Chem import AllChem
 
+MIN_SCALE = 2.0  # columns per angstrom
 MAX_SCALE = 10.0  # columns per angstrom
 ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
@@ -400,7 +402,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "h/j/k/l: move | s/S: SMILES | i/C/N/O: insert | x: del | +/-: charge | ^L: clean | 0-3: bond | q: quit"
+        "h/j/k/l: move | s/S: SMILES | i/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -570,6 +572,40 @@ def main_loop(stdscr, initial_smiles=None):
                 except Exception:
                     # Error regenerating coordinates
                     pass
+
+        # Zoom out
+        elif key == ord('<'):
+            if box is not None and scale is not None:
+                # Decrease scale by factor of 1.2
+                xscale = max(MIN_SCALE, scale[0] / 1.2)
+                yscale = xscale * ASPECT_RATIO
+                scale = (xscale, yscale)
+
+                # Recalculate y_offset for new scale
+                if mol.GetNumAtoms() > 0:
+                    (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                    mol_height = int((ymax - ymin) * yscale + 2 * PADDING)
+                    available_height = max_y - 2
+                    y_offset = max(0, (available_height - mol_height) // 2)
+
+                need_redraw = True
+
+        # Zoom in
+        elif key == ord('>'):
+            if box is not None and scale is not None:
+                # Increase scale by factor of 1.2
+                xscale = min(MAX_SCALE, scale[0] * 1.2)
+                yscale = xscale * ASPECT_RATIO
+                scale = (xscale, yscale)
+
+                # Recalculate y_offset for new scale
+                if mol.GetNumAtoms() > 0:
+                    (xmin, ymin, zmin), (xmax, ymax, zmax) = box
+                    mol_height = int((ymax - ymin) * yscale + 2 * PADDING)
+                    available_height = max_y - 2
+                    y_offset = max(0, (available_height - mol_height) // 2)
+
+                need_redraw = True
 
         # Add/modify/delete bond
         elif key in [ord('0'), ord('1'), ord('2'), ord('3')]:
