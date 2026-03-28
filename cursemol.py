@@ -14,6 +14,8 @@ Controls:
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
   0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
+  u          - Undo
+  r          - Redo
   Ctrl-L     - Cleanup/regenerate coordinates
   q          - Quit
 """
@@ -430,6 +432,22 @@ def get_smiles(mol):
     return Chem.MolToSmiles(mol_for_smiles)
 
 
+def save_state(mol, box, scale, y_offset):
+    """Save current state for undo/redo. Returns a deep copy of the state."""
+    return {
+        'mol': Chem.RWMol(mol) if mol is not None else None,
+        'box': box,
+        'scale': scale,
+        'y_offset': y_offset
+    }
+
+
+def restore_state(state):
+    """Restore state from saved state dict. Returns (mol, box, scale, y_offset)."""
+    mol = Chem.RWMol(state['mol']) if state['mol'] is not None else None
+    return mol, state['box'], state['scale'], state['y_offset']
+
+
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
@@ -484,10 +502,14 @@ def main_loop(stdscr, initial_smiles=None):
         available_height = max_y - 2
         y_offset = max(0, (available_height - mol_height) // 2)
 
+    # Undo/redo history
+    history = [save_state(mol, box, scale, y_offset)]
+    history_index = 0
+
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: charge | <>: zoom | u/r: undo/redo | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -585,10 +607,19 @@ def main_loop(stdscr, initial_smiles=None):
             if smiles:
                 m = Chem.MolFromSmiles(smiles)
                 if m is not None:
+                    # Truncate future history
+                    history = history[:history_index + 1]
+
+                    # Perform edit
                     mol = Chem.RWMol(m)
                     AllChem.Compute2DCoords(mol)
                     box, scale, y_offset = calculate_box_and_scale(
                         mol, max_x, max_y)
+
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
+
                     need_redraw = True
 
         # Toggle SMILES display
@@ -602,6 +633,9 @@ def main_loop(stdscr, initial_smiles=None):
                 symbol = enter_element(stdscr, max_y)
                 if symbol:
                     try:
+                        # Truncate future history
+                        history = history[:history_index + 1]
+
                         # Add atom to molecule
                         atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
@@ -612,6 +646,10 @@ def main_loop(stdscr, initial_smiles=None):
                         # Set atom position in conformer
                         conf = mol.GetConformer()
                         conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+
+                        # Save new state to history
+                        history.append(save_state(mol, box, scale, y_offset))
+                        history_index = len(history) - 1
 
                         need_redraw = True
                     except Exception:
@@ -624,6 +662,9 @@ def main_loop(stdscr, initial_smiles=None):
             if mol is not None and box is not None and scale is not None:
                 symbol = chr(key).upper()
                 try:
+                    # Truncate future history
+                    history = history[:history_index + 1]
+
                     # Add atom to molecule
                     atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
@@ -634,6 +675,10 @@ def main_loop(stdscr, initial_smiles=None):
                     # Set atom position in conformer
                     conf = mol.GetConformer()
                     conf.SetAtomPosition(atom_idx, [mol_x, mol_y, 0.0])
+
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
 
                     need_redraw = True
                 except Exception:
@@ -663,6 +708,9 @@ def main_loop(stdscr, initial_smiles=None):
                             # Create sidechain molecule
                             sidechain = Chem.MolFromSmiles(sidechain_smiles)
                             if sidechain is not None:
+                                # Truncate future history
+                                history = history[:history_index + 1]
+
                                 # Get the index where sidechain will start
                                 start_idx = mol.GetNumAtoms()
                                 end_idx = start_idx + sidechain.GetNumAtoms() - 1
@@ -727,6 +775,10 @@ def main_loop(stdscr, initial_smiles=None):
                                 mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
                                 available_height = max_y - 2
                                 y_offset = max(0, (available_height - mol_display_height) // 2)
+
+                                # Save new state to history
+                                history.append(save_state(mol, box, scale, y_offset))
+                                history_index = len(history) - 1
                         except Exception as e:
                             logging.exception("Error appending atoms (a command)")
                             # Error appending atoms
@@ -742,7 +794,15 @@ def main_loop(stdscr, initial_smiles=None):
                                                scale, max_y, y_offset)
                 if atom_idx is not None:
                     try:
+                        # Truncate future history
+                        history = history[:history_index + 1]
+
                         mol.RemoveAtom(atom_idx)
+
+                        # Save new state to history
+                        history.append(save_state(mol, box, scale, y_offset))
+                        history_index = len(history) - 1
+
                         need_redraw = True
                     except Exception:
                         logging.exception("Error removing atom (x command)")
@@ -756,6 +816,13 @@ def main_loop(stdscr, initial_smiles=None):
                     if atom_pair is not None:
                         atom1_idx, atom2_idx = atom_pair
                         if modify_bond(mol, atom1_idx, atom2_idx, 0):
+                            # Truncate future history
+                            history = history[:history_index + 1]
+
+                            # Save new state to history
+                            history.append(save_state(mol, box, scale, y_offset))
+                            history_index = len(history) - 1
+
                             need_redraw = True
 
         # Increase formal charge
@@ -764,9 +831,17 @@ def main_loop(stdscr, initial_smiles=None):
                 atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
                                                scale, max_y, y_offset)
                 if atom_idx is not None:
+                    # Truncate future history
+                    history = history[:history_index + 1]
+
                     atom = mol.GetAtomWithIdx(atom_idx)
                     current_charge = atom.GetFormalCharge()
                     atom.SetFormalCharge(current_charge + 1)
+
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
+
                     need_redraw = True
 
         # Decrease formal charge
@@ -775,15 +850,26 @@ def main_loop(stdscr, initial_smiles=None):
                 atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
                                                scale, max_y, y_offset)
                 if atom_idx is not None:
+                    # Truncate future history
+                    history = history[:history_index + 1]
+
                     atom = mol.GetAtomWithIdx(atom_idx)
                     current_charge = atom.GetFormalCharge()
                     atom.SetFormalCharge(current_charge - 1)
+
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
+
                     need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == 12:  # Ctrl-L
             if mol is not None and mol.GetNumAtoms() > 0:
                 try:
+                    # Truncate future history
+                    history = history[:history_index + 1]
+
                     AllChem.Compute2DCoords(mol)
 
                     # Recenter molecule while keeping zoom level
@@ -815,6 +901,10 @@ def main_loop(stdscr, initial_smiles=None):
                         available_height = max_y - 2
                         y_offset = max(
                             0, (available_height - mol_display_height) // 2)
+
+                    # Save new state to history
+                    history.append(save_state(mol, box, scale, y_offset))
+                    history_index = len(history) - 1
 
                     need_redraw = True
                 except Exception:
@@ -905,7 +995,28 @@ def main_loop(stdscr, initial_smiles=None):
                     atom1_idx, atom2_idx = atom_pair
                     # Only redraw if modification was successful
                     if modify_bond(mol, atom1_idx, atom2_idx, bond_order):
+                        # Truncate future history
+                        history = history[:history_index + 1]
+
+                        # Save new state to history
+                        history.append(save_state(mol, box, scale, y_offset))
+                        history_index = len(history) - 1
+
                         need_redraw = True
+
+        # Undo
+        elif key == ord('u'):
+            if history_index > 0:
+                history_index -= 1
+                mol, box, scale, y_offset = restore_state(history[history_index])
+                need_redraw = True
+
+        # Redo
+        elif key == ord('r'):
+            if history_index < len(history) - 1:
+                history_index += 1
+                mol, box, scale, y_offset = restore_state(history[history_index])
+                need_redraw = True
 
         # Quit
         elif key == ord('q'):
