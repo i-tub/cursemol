@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-CurseMol - Molecular sketcher for the terminal
+CurseMol - Molecular sketcher for the terminally insane
 
 Controls:
   h, j, k, l - Move cursor left, down, up, right
-  H, J, K, L - Shift molecule left, down, up, down, right
+  H, J, K, L - Translate molecule left, down, up, down, right
   s          - Enter a SMILES string to replace the current molecule
   S          - Toggle SMILES display
   i          - Insert/modify atom at cursor position
@@ -960,7 +960,7 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: chg",
+        "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: chg",
         "<>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | @: clear | ?: help | q: quit"
     ]
 
@@ -1168,7 +1168,7 @@ def main():
     logger.setLevel(RDLogger.CRITICAL)
 
     parser = argparse.ArgumentParser(
-        description='Display molecules in the terminal')
+        description='CurseMol - molecular sketcher for the terminally insane')
     parser.add_argument(
         'smiles',
         nargs='?',
