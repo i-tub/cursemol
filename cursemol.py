@@ -251,7 +251,9 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
     """
     Modify or create a bond between two atoms.
     bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
-    Returns True if successful, False if no change was made or modification would create an invalid molecule.
+
+    Returns True if successful, False if no change was made or modification
+    would create an invalid molecule.
     """
     bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
 
@@ -858,8 +860,11 @@ def zoom_view(history, max_x, max_y, zoom_factor):
 def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
                            cursor_y, max_x, max_y):
     """
-    Handle the 'a' command: append atoms from SMILES to atom or bond under cursor.
-    Returns (mol, box, scale, y_offset) if successful, None if no change was made.
+    Handle the 'a' command: append atoms from SMILES to atom or bond under
+    cursor.
+
+    Returns (mol, box, scale, y_offset) if successful, None if no change was
+    made.
     """
     # Find atom under cursor
     atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y,
@@ -976,11 +981,15 @@ def redraw_screen(stdscr,
                   selection_anchor_y=None,
                   cursor_x=None,
                   cursor_y=None):
-    """Redraw the entire screen with molecule, SMILES, instructions, and optional selection."""
+    """
+    Redraw the entire screen with molecule, SMILES, instructions, and optional
+    selection.
+    """
     stdscr.clear()
 
     # Draw molecule if present
-    if history.mol is not None and history.box is not None and history.scale is not None:
+    if (history.mol is not None and history.box is not None and
+            history.scale is not None):
         draw_mol(stdscr, history.mol, history.box, history.scale, max_y,
                  history.y_offset)
 
@@ -998,7 +1007,8 @@ def redraw_screen(stdscr,
                 break
 
     # Draw selection rectangle if in selection mode
-    if selection_mode and selection_anchor_x is not None and cursor_x is not None:
+    if (selection_mode and selection_anchor_x is not None and
+            cursor_x is not None):
         draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
                             cursor_x, cursor_y, max_x, max_y)
 
@@ -1064,7 +1074,8 @@ def main_loop(stdscr, initial_smiles=None):
     # Undo/redo history
     history = UndoHistory(mol, box, scale, y_offset)
 
-    # Instructions (try to keep lines under 80 characters and more or less balanced)
+    # Instructions (try to keep lines under 80 characters and more or less
+    # balanced)
     instructions = [
         "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
         "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 1-3: bond | @: clear | ?: help"
@@ -1168,7 +1179,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
-            if history.mol is not None and history.box is not None and history.scale is not None:
+            if (history.mol is not None and history.box is not None and
+                    history.scale is not None):
                 result = insert_or_modify_atom(stdscr, history.mol, history.box,
                                                history.scale, history.y_offset,
                                                cursor_x, cursor_y, max_y)
@@ -1181,7 +1193,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
-            if history.mol is not None and history.box is not None and history.scale is not None:
+            if (history.mol is not None and history.box is not None and
+                    history.scale is not None):
                 symbol = key.upper()
                 result = insert_or_modify_atom(stdscr, history.mol, history.box,
                                                history.scale, history.y_offset,
@@ -1195,7 +1208,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
-            if history.mol is not None and history.box is not None and history.scale is not None:
+            if (history.mol is not None and history.box is not None and
+                    history.scale is not None):
                 result = append_smiles_fragment(stdscr, history.mol,
                                                 history.box, history.scale,
                                                 history.y_offset, cursor_x,
