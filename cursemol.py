@@ -198,7 +198,7 @@ def find_bond_atoms(mol, pos_x, pos_y):
             angle_deg = math.degrees(math.acos(max(-1.0, min(1.0, cos_angle))))
 
             # If angle is at least 160 degrees, we found our pair
-            if angle_deg >= 160:
+            if angle_deg >= 140:
                 return (idx1, idx2)
 
     return None
@@ -354,6 +354,7 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
+    curses.use_default_colors()  # Use terminal's default colors
     stdscr.clear()
 
     # Get screen dimensions
