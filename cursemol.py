@@ -8,12 +8,13 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
-  a          - Append atoms from SMILES to atom under cursor
+  a          - Append atoms from SMILES to atom or bond under cursor
+               (appending to a bond forms a ring)
   c, n, o    - Insert carbon/nitrogen/oxygen atom (shortcuts)
   x          - Delete atom or bond at cursor position
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
-  0, 1, 2, 3 - Delete/add bond (order 0/1/2/3) between nearest atoms
+  1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
   u          - Undo
   r          - Redo
   Ctrl-L     - Cleanup/regenerate coordinates
@@ -511,7 +512,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions (try to keep lines under 80 characters and more or less balanced)
     instructions = [
         "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del",
-        "+/-: chg | <>: zoom | u/r: undo/redo | ^L: clean | 0-3: bond | q: quit"
+        "+/-: chg | <>: zoom | u/r: undo/redo | ^L: clean | 1-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -983,7 +984,7 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
 
         # Add/modify/delete bond
-        elif key in [ord('0'), ord('1'), ord('2'), ord('3')]:
+        elif key in [ord('1'), ord('2'), ord('3')]:
             if mol is not None and box is not None and scale is not None:
                 bond_order = int(chr(key))
                 # Convert cursor position to molecule coordinates
