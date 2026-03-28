@@ -23,9 +23,12 @@ Controls:
 """
 
 import argparse
+import atexit
 import curses
 import logging
 import math
+import os
+import sys
 from rdkit import Chem
 from rdkit import Geometry
 from rdkit import RDLogger
@@ -1067,10 +1070,26 @@ def main():
         description='Display molecules in the terminal')
     parser.add_argument('smiles',
                         nargs='?',
-                        help='Initial SMILES string to display')
+                        help='Initial SMILES string to display (use "-" to read from stdin)')
     args = parser.parse_args()
 
-    print(curses.wrapper(main_loop, args.smiles))
+    # Handle reading from stdin if "-" is provided
+    initial_smiles = args.smiles
+    if initial_smiles == "-":
+        initial_smiles = sys.stdin.readline().strip()
+
+    # If stdin is not a TTY (e.g., piped input), redirect to /dev/tty
+    # so curses can read keyboard input
+    if not sys.stdin.isatty():
+        sys.stdin.close()  # Close the old stdin to avoid resource warning
+        tty_fd = os.open('/dev/tty', os.O_RDONLY)
+        os.dup2(tty_fd, 0)  # Replace fd 0 (stdin) with /dev/tty
+        os.close(tty_fd)
+        sys.stdin = os.fdopen(0, 'r')
+        # Register cleanup to avoid resource warning on exit
+        atexit.register(lambda: sys.stdin.close())
+
+    print(curses.wrapper(main_loop, initial_smiles))
 
 
 if __name__ == "__main__":
