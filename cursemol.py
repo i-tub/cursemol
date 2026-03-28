@@ -278,6 +278,10 @@ def calculate_box_and_scale(mol, max_x, max_y):
 
 def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     """Draw the molecule using ASCII art using the given box and scale."""
+    # Nothing to draw if molecule is empty
+    if mol.GetNumAtoms() == 0:
+        return
+
     try:
         Chem.Kekulize(mol, True)
     except Exception:
@@ -374,6 +378,23 @@ def main_loop(stdscr, initial_smiles=None):
             mol = Chem.RWMol(m)
             AllChem.Compute2DCoords(mol)
             box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+    else:
+        # Set up default coordinate system for empty molecule
+        # Add an empty conformer
+        conf = Chem.Conformer()
+        mol.AddConformer(conf)
+
+        # Default box: 20 angstroms centered at origin
+        box_size = 10.0
+        box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
+        # Use max scale
+        xscale = MAX_SCALE
+        yscale = xscale * ASPECT_RATIO
+        scale = (xscale, yscale)
+        # Center vertically
+        mol_height = int(2 * box_size * yscale + 2 * PADDING)
+        available_height = max_y - 2
+        y_offset = max(0, (available_height - mol_height) // 2)
 
     # Instructions
     instructions = [
