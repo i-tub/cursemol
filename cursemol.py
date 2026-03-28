@@ -403,6 +403,15 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
                 pass
 
 
+def get_smiles(mol):
+    mol_for_smiles = Chem.Mol(mol)
+    try:
+        Chem.SanitizeMol(mol_for_smiles)
+    except:
+        mol_for_smiles = mol
+    return Chem.MolToSmiles(mol_for_smiles)
+
+
 def main_loop(stdscr, initial_smiles=None):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
@@ -477,7 +486,7 @@ def main_loop(stdscr, initial_smiles=None):
 
             # Draw SMILES at the top if enabled (after molecule so it's on top)
             if show_smiles and mol is not None:
-                current_smiles = Chem.MolToSmiles(mol)
+                current_smiles = get_smiles(mol)
                 # Wrap SMILES to screen width
                 row = 0
                 for i in range(0, len(current_smiles), max_x - 1):
@@ -775,8 +784,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Quit
         elif key == ord('q'):
-            Chem.SanitizeMol(mol)
-            return Chem.MolToSmiles(mol)
+            return get_smiles(mol)
 
 
 def main():
