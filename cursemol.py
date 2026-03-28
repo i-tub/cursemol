@@ -1062,33 +1062,24 @@ def main_loop(stdscr, initial_smiles=None):
         stdscr.refresh()
 
         # Get user input
-        key = stdscr.getch()
-
-        # Convert printable characters to string for easier comparison
-        if 32 <= key <= 126:
-            key = chr(key)
+        key = chr(stdscr.getch())
 
         # Handle movement (vi-style) - works in both normal and selection mode
-        if key == 'h':  # left
-            cursor_x = max(0, cursor_x - 1)
-            if selection_mode:
-                need_redraw = True
-        elif key == 'j':  # down
-            cursor_y = min(max_y - 1, cursor_y + 1)
-            if selection_mode:
-                need_redraw = True
-        elif key == 'k':  # up
-            cursor_y = max(0, cursor_y - 1)
-            if selection_mode:
-                need_redraw = True
-        elif key == 'l':  # right
-            cursor_x = min(max_x - 1, cursor_x + 1)
+        if key in 'hjkl':
+            if key == 'h':  # left
+                cursor_x = max(0, cursor_x - 1)
+            elif key == 'j':  # down
+                cursor_y = min(max_y - 1, cursor_y + 1)
+            elif key == 'k':  # up
+                cursor_y = max(0, cursor_y - 1)
+            elif key == 'l':  # right
+                cursor_x = min(max_x - 1, cursor_x + 1)
             if selection_mode:
                 need_redraw = True
 
         # Special handling for selection mode
         elif selection_mode:
-            if key in [10, 13]:  # Enter
+            if key in '\r\n':  # Enter
                 # Delete atoms in selection
                 if delete_atoms_in_rect(history, selection_anchor_x, selection_anchor_y,
                                        cursor_x, cursor_y, max_y):
@@ -1097,7 +1088,7 @@ def main_loop(stdscr, initial_smiles=None):
                 selection_anchor_x = None
                 selection_anchor_y = None
                 need_redraw = True
-            elif key == 27:  # Escape
+            elif key == '\x1b':  # Escape
                 # Cancel selection
                 selection_mode = False
                 selection_anchor_x = None
@@ -1208,7 +1199,7 @@ def main_loop(stdscr, initial_smiles=None):
                     need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
-        elif key == 12:  # Ctrl-L
+        elif key == '\x0c':  # Ctrl-L
             with history:
                 if cleanup_coordinates(history, max_x, max_y):
                     need_redraw = True
