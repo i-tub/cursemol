@@ -671,6 +671,22 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     return False
 
 
+def load_smiles(stdscr, max_x, max_y):
+    """
+    Prompt user for SMILES string and create molecule from it.
+    Returns (mol, box, scale, y_offset) if successful, None otherwise.
+    """
+    smiles = enter_smiles(stdscr, max_y)
+    if smiles:
+        m = Chem.MolFromSmiles(smiles)
+        if m is not None:
+            mol = Chem.RWMol(m)
+            AllChem.Compute2DCoords(mol)
+            box, scale, y_offset = calculate_box_and_scale(mol, max_x, max_y)
+            return mol, box, scale, y_offset
+    return None
+
+
 def clear_canvas(history, max_y):
     """
     Clear the canvas and reset to blank slate with default settings.
@@ -991,15 +1007,10 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Enter SMILES string
         elif key == ord('s'):
-            smiles = enter_smiles(stdscr, max_y)
-            if smiles:
-                m = Chem.MolFromSmiles(smiles)
-                if m is not None:
-                    with history:
-                        history.mol = Chem.RWMol(m)
-                        AllChem.Compute2DCoords(history.mol)
-                        history.box, history.scale, history.y_offset = calculate_box_and_scale(
-                            history.mol, max_x, max_y)
+            result = load_smiles(stdscr, max_x, max_y)
+            if result is not None:
+                with history:
+                    history.mol, history.box, history.scale, history.y_offset = result
 
             # Always redraw to clear the prompt
             need_redraw = True
