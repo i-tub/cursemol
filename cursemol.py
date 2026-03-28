@@ -1235,20 +1235,15 @@ def main_loop(stdscr, initial_smiles=None):
             continue
 
         # Shift molecule (move all atoms)
-        elif key == 'K':  # shift up
-            shift_view(state, 0, -1)
-            need_redraw = True
-
-        elif key == 'H':  # shift left
-            shift_view(state, 1, 0)
-            need_redraw = True
-
-        elif key == 'J':  # shift down
-            shift_view(state, 0, 1)
-            need_redraw = True
-
-        elif key == 'L':  # shift right
-            shift_view(state, -1, 0)
+        elif key in 'HJKL':
+            if key == 'H':  # shift left
+                shift_view(state, 1, 0)
+            elif key == 'J':  # shift down
+                shift_view(state, 0, 1)
+            elif key == 'K':  # shift up
+                shift_view(state, 0, -1)
+            elif key == 'L':  # shift right
+                shift_view(state, -1, 0)
             need_redraw = True
 
         # Enter SMILES string
