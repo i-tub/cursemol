@@ -671,6 +671,30 @@ def delete_at_cursor(history, cursor_x, cursor_y, max_y):
     return False
 
 
+def clear_canvas(history, max_y):
+    """
+    Clear the canvas and reset to blank slate with default settings.
+    """
+    # Create empty molecule
+    history.mol = Chem.RWMol()
+    conf = Chem.Conformer()
+    history.mol.AddConformer(conf)
+
+    # Default box: 20 angstroms centered at origin
+    box_size = 10.0
+    history.box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
+
+    # Use default scale
+    xscale = DEFAULT_SCALE
+    yscale = xscale * ASPECT_RATIO
+    history.scale = (xscale, yscale)
+
+    # Center vertically
+    mol_height = int(2 * box_size * yscale + 2 * PADDING)
+    available_height = max_y - 2
+    history.y_offset = max(0, (available_height - mol_height) // 2)
+
+
 def shift_view(history, dx_sign, dy_sign):
     """
     Shift the view (pan the molecule) by one step in the given direction.
@@ -1071,24 +1095,7 @@ def main_loop(stdscr, initial_smiles=None):
         # Clear canvas (reset to blank slate)
         elif key == ord('@'):
             with history:
-                # Create empty molecule
-                history.mol = Chem.RWMol()
-                conf = Chem.Conformer()
-                history.mol.AddConformer(conf)
-
-                # Default box: 20 angstroms centered at origin
-                box_size = 10.0
-                history.box = ((-box_size, -box_size, 0.0), (box_size, box_size,
-                                                             0.0))
-                # Use default scale
-                xscale = DEFAULT_SCALE
-                yscale = xscale * ASPECT_RATIO
-                history.scale = (xscale, yscale)
-                # Center vertically
-                mol_height = int(2 * box_size * yscale + 2 * PADDING)
-                available_height = max_y - 2
-                history.y_offset = max(0, (available_height - mol_height) // 2)
-
+                clear_canvas(history, max_y)
             need_redraw = True
 
         # Undo
