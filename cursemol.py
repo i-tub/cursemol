@@ -564,6 +564,40 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def delete_at_cursor(history, cursor_x, cursor_y, max_y):
+    """
+    Delete atom or bond at cursor position.
+    Returns True if something was deleted, False otherwise.
+    """
+    if history.mol is None or history.box is None or history.scale is None:
+        return False
+
+    # First try to find an atom at cursor
+    atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
+                                   history.box, history.scale,
+                                   max_y, history.y_offset)
+    if atom_idx is not None:
+        try:
+            history.mol.RemoveAtom(atom_idx)
+            return True
+        except Exception:
+            logging.exception("Error removing atom (x command)")
+            return False
+    else:
+        # No atom found, try to delete a bond instead
+        mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                            history.box,
+                                            history.scale, max_y,
+                                            history.y_offset)
+        atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
+        if atom_pair is not None:
+            atom1_idx, atom2_idx = atom_pair
+            if modify_bond(history.mol, atom1_idx, atom2_idx, 0):
+                return True
+
+    return False
+
+
 def shift_view(history, dx_sign, dy_sign):
     """
     Shift the view (pan the molecule) by one step in the given direction.
@@ -923,32 +957,9 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Delete atom or bond at cursor position
         elif key == ord('x'):
-            if history.mol is not None and history.box is not None and history.scale is not None:
-                # First try to find an atom at cursor
-                atom_idx = find_atom_at_cursor(history.mol, cursor_x, cursor_y,
-                                               history.box, history.scale,
-                                               max_y, history.y_offset)
-                if atom_idx is not None:
-                    try:
-                        with history:
-                            history.mol.RemoveAtom(atom_idx)
-                        need_redraw = True
-                    except Exception:
-                        logging.exception("Error removing atom (x command)")
-                        pass
-                else:
-                    # No atom found, try to delete a bond instead
-                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                                        history.box,
-                                                        history.scale, max_y,
-                                                        history.y_offset)
-                    atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
-                    if atom_pair is not None:
-                        atom1_idx, atom2_idx = atom_pair
-                        if modify_bond(history.mol, atom1_idx, atom2_idx, 0):
-                            with history:
-                                pass  # Bond already modified in-place
-                            need_redraw = True
+            with history:
+                if delete_at_cursor(history, cursor_x, cursor_y, max_y):
+                    need_redraw = True
 
         # Increase formal charge
         elif key == ord('+'):
