@@ -564,6 +564,30 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
+    """
+    Create or adjust bond between two nearest atoms at cursor position.
+    bond_order: 1 (single), 2 (double), or 3 (triple)
+    Returns True if bond was created/modified, False otherwise.
+    """
+    if history.mol is None or history.box is None or history.scale is None:
+        return False
+
+    # Convert cursor position to molecule coordinates
+    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                        history.box, history.scale,
+                                        max_y, history.y_offset)
+
+    # Find the two atoms that should be bonded
+    atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
+
+    if atom_pair is not None:
+        atom1_idx, atom2_idx = atom_pair
+        return modify_bond(history.mol, atom1_idx, atom2_idx, bond_order)
+
+    return False
+
+
 def adjust_formal_charge(history, cursor_x, cursor_y, max_y, delta):
     """
     Adjust formal charge of atom at cursor position by delta.
@@ -1012,24 +1036,10 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Add/modify/delete bond
         elif key in [ord('1'), ord('2'), ord('3')]:
-            if history.mol is not None and history.box is not None and history.scale is not None:
-                bond_order = int(chr(key))
-                # Convert cursor position to molecule coordinates
-                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                                    history.box, history.scale,
-                                                    max_y, history.y_offset)
-
-                # Find the two atoms that should be bonded
-                atom_pair = find_bond_atoms(history.mol, mol_x, mol_y)
-
-                if atom_pair is not None:
-                    atom1_idx, atom2_idx = atom_pair
-                    # Only redraw if modification was successful
-                    if modify_bond(history.mol, atom1_idx, atom2_idx,
-                                   bond_order):
-                        with history:
-                            pass  # Bond already modified in-place
-                        need_redraw = True
+            bond_order = int(chr(key))
+            with history:
+                if create_or_adjust_bond(history, cursor_x, cursor_y, max_y, bond_order):
+                    need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == ord('@'):
