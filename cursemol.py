@@ -626,7 +626,8 @@ def main_loop(stdscr, initial_smiles=None):
                     history.append(save_state(mol, box, scale, y_offset))
                     history_index = len(history) - 1
 
-                    need_redraw = True
+            # Always redraw to clear the prompt
+            need_redraw = True
 
         # Toggle SMILES display
         elif key == ord('S'):
@@ -665,12 +666,13 @@ def main_loop(stdscr, initial_smiles=None):
                         # Save new state to history
                         history.append(save_state(mol, box, scale, y_offset))
                         history_index = len(history) - 1
-
-                        need_redraw = True
                     except Exception:
                         logging.exception("Error inserting atom (i command)")
                         # Invalid element symbol or other error
                         pass
+
+                # Always redraw to clear the prompt
+                need_redraw = True
 
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in [ord('c'), ord('n'), ord('o')]:
@@ -807,8 +809,8 @@ def main_loop(stdscr, initial_smiles=None):
                             logging.exception("Error appending atoms (a command)")
                             # Error appending atoms
                             pass
-                        # Always redraw to clear the prompt
-                        need_redraw = True
+                    # Always redraw to clear the prompt
+                    need_redraw = True
 
         # Delete atom or bond at cursor position
         elif key == ord('x'):
