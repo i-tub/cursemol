@@ -564,6 +564,23 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def shift_view(history, dx_sign, dy_sign):
+    """
+    Shift the view (pan the molecule) by one step in the given direction.
+    dx_sign, dy_sign: -1, 0, or +1 indicating direction.
+    """
+    if history.box is None or history.scale is None:
+        return
+
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
+
+    # Calculate step size based on scale
+    dx = dx_sign / history.scale[0] if dx_sign != 0 else 0
+    dy = dy_sign / history.scale[1] if dy_sign != 0 else 0
+
+    history.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
+
+
 def cleanup_coordinates(history, max_x, max_y):
     """
     Regenerate 2D coordinates for the molecule and recenter the view.
@@ -828,36 +845,20 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Shift molecule (move all atoms)
         elif key == ord('K'):  # shift up
-            if history.box is not None and history.scale is not None:
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                # Move atoms up on screen = decrease y in box
-                dy = 1.0 / history.scale[1]
-                history.box = ((xmin, ymin - dy, zmin), (xmax, ymax - dy, zmax))
-                need_redraw = True
+            shift_view(history, 0, -1)
+            need_redraw = True
 
         elif key == ord('H'):  # shift left
-            if history.box is not None and history.scale is not None:
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                # Move atoms left on screen = increase x in box
-                dx = 1.0 / history.scale[0]
-                history.box = ((xmin + dx, ymin, zmin), (xmax + dx, ymax, zmax))
-                need_redraw = True
+            shift_view(history, 1, 0)
+            need_redraw = True
 
         elif key == ord('J'):  # shift down
-            if history.box is not None and history.scale is not None:
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                # Move atoms down on screen = increase y in box
-                dy = 1.0 / history.scale[1]
-                history.box = ((xmin, ymin + dy, zmin), (xmax, ymax + dy, zmax))
-                need_redraw = True
+            shift_view(history, 0, 1)
+            need_redraw = True
 
         elif key == ord('L'):  # shift right
-            if history.box is not None and history.scale is not None:
-                (xmin, ymin, zmin), (xmax, ymax, zmax) = history.box
-                # Move atoms right on screen = decrease x in box
-                dx = 1.0 / history.scale[0]
-                history.box = ((xmin - dx, ymin, zmin), (xmax - dx, ymax, zmax))
-                need_redraw = True
+            shift_view(history, -1, 0)
+            need_redraw = True
 
         # Enter SMILES string
         elif key == ord('s'):
