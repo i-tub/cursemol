@@ -8,6 +8,7 @@ Controls:
   s          - Enter a SMILES string
   S          - Toggle SMILES display
   i          - Insert atom at cursor position
+  a          - Append atoms from SMILES to atom under cursor
   C, N, O    - Insert carbon/nitrogen/oxygen atom (shortcuts)
   x          - Delete atom or bond at cursor position
   +, -       - Increase/decrease formal charge on atom
@@ -19,8 +20,10 @@ Controls:
 
 import argparse
 import curses
+import logging
 import math
 from rdkit import Chem
+from rdkit import Geometry
 from rdkit import RDLogger
 from rdkit.Chem import AllChem
 
@@ -86,6 +89,7 @@ def enter_smiles(stdscr, max_y):
         smiles_bytes = stdscr.getstr(max_y - 1, 14)
         smiles = smiles_bytes.decode('utf-8')
     except Exception:
+        logging.exception("Error in enter_smiles")
         smiles = ""
     finally:
         curses.noecho()
@@ -106,6 +110,7 @@ def enter_element(stdscr, max_y):
         symbol_bytes = stdscr.getstr(max_y - 1, 16)
         symbol = symbol_bytes.decode('utf-8').strip()
     except Exception:
+        logging.exception("Error in enter_element")
         symbol = ""
     finally:
         curses.noecho()
@@ -253,6 +258,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
         return True
 
     except Exception:
+        logging.exception("Error in modify_bond, reverting change")
         # Revert the change if kekulization fails
         if bond_order == 0:
             # We deleted the bond, add it back
@@ -311,6 +317,7 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
     try:
         Chem.Kekulize(mol, True)
     except Exception:
+        logging.exception("Error kekulizing molecule in draw_mol")
         # If kekulization fails, skip drawing bonds (just show atoms)
         pass
 
@@ -348,6 +355,7 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
                 draw_line(screen, BOND_CHARS[bond.GetBondType()], x1, y1, x2,
                           y2)
     except Exception:
+        logging.exception("Error drawing bonds in draw_mol")
         # If there's any issue drawing bonds, continue to draw atoms
         pass
 
@@ -479,7 +487,7 @@ def main_loop(stdscr, initial_smiles=None):
     # Instructions
     instructions = [
         "Cursemol - Display molecules",
-        "hjkl: move | HJKL: shift | s/S: SMILES | i/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
+        "hjkl: move | HJKL: shift | s/S: SMILES | i/a/C/N/O: insert | x: del | +/-: charge | <>: zoom | ^L: clean | 0-3: bond | q: quit"
     ]
 
     # Track when we need to redraw the entire screen
@@ -607,6 +615,7 @@ def main_loop(stdscr, initial_smiles=None):
 
                         need_redraw = True
                     except Exception:
+                        logging.exception("Error inserting atom (i command)")
                         # Invalid element symbol or other error
                         pass
 
@@ -628,8 +637,72 @@ def main_loop(stdscr, initial_smiles=None):
 
                     need_redraw = True
                 except Exception:
+                    logging.exception("Error inserting atom (C/N/O shortcut)")
                     # Invalid element symbol or other error
                     pass
+
+        # Append atoms from SMILES to atom under cursor
+        elif key == ord('a'):
+            if mol is not None and box is not None and scale is not None:
+                # Find atom under cursor
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
+                if atom_idx is not None:
+                    # Prompt for SMILES
+                    sidechain_smiles = enter_smiles(stdscr, max_y)
+                    if sidechain_smiles:
+                        try:
+                            # Create sidechain molecule
+                            sidechain = Chem.MolFromSmiles(sidechain_smiles)
+                            if sidechain is not None:
+                                # Get the index where sidechain will start
+                                start_idx = mol.GetNumAtoms()
+
+                                # Insert sidechain into molecule
+                                mol.InsertMol(sidechain)
+
+                                # Add bond between cursor atom and first sidechain atom
+                                mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
+
+                                # Create coordinate map to keep original atoms fixed
+                                coord_map = {}
+                                conf = mol.GetConformer()
+                                for i in range(start_idx):
+                                    pos = conf.GetAtomPosition(i)
+                                    coord_map[i] = Geometry.Point2D(pos.x, pos.y)
+
+                                # Compute 2D coordinates for new atoms only
+                                AllChem.Compute2DCoords(mol, coordMap=coord_map)
+
+                                # Update box to show all atoms while keeping same scale
+                                conf = mol.GetConformer()
+                                actual_box = get_box(conf)
+                                (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
+
+                                # Calculate center of entire molecule (old + new)
+                                center_x = (xmin + xmax) / 2
+                                center_y = (ymin + ymax) / 2
+
+                                # Calculate box dimensions at current scale
+                                screen_width = max_x - 2 * PADDING
+                                screen_height = max_y - 2 - 2 * PADDING
+                                mol_width = screen_width / scale[0]
+                                mol_height = screen_height / scale[1]
+
+                                # Create box centered on new molecule center
+                                box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
+                                       (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+
+                                # Recalculate y_offset
+                                mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+                                available_height = max_y - 2
+                                y_offset = max(0, (available_height - mol_display_height) // 2)
+                        except Exception as e:
+                            logging.exception("Error appending atoms (a command)")
+                            # Error appending atoms
+                            pass
+                        # Always redraw to clear the prompt
+                        need_redraw = True
 
         # Delete atom or bond at cursor position
         elif key == ord('x'):
@@ -642,6 +715,7 @@ def main_loop(stdscr, initial_smiles=None):
                         mol.RemoveAtom(atom_idx)
                         need_redraw = True
                     except Exception:
+                        logging.exception("Error removing atom (x command)")
                         # Error removing atom
                         pass
                 else:
@@ -714,6 +788,7 @@ def main_loop(stdscr, initial_smiles=None):
 
                     need_redraw = True
                 except Exception:
+                    logging.exception("Error regenerating coordinates (Ctrl-L)")
                     # Error regenerating coordinates
                     pass
 
@@ -808,6 +883,15 @@ def main_loop(stdscr, initial_smiles=None):
 
 
 def main():
+    # Set up logging to file (truncate on start)
+    logging.basicConfig(
+        filename='cursemol.log',
+        filemode='w',  # Truncate on open
+        level=logging.ERROR,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+    # Silence RDKit warnings
     logger = RDLogger.logger()
     logger.setLevel(RDLogger.CRITICAL)
 
