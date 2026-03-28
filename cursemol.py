@@ -72,6 +72,49 @@ class State:
     y_offset: int
 
 
+class UndoHistory:
+    """Manages undo/redo history for molecule editing."""
+
+    def __init__(self, state):
+        self.state = state
+        self._history = [save_state(state)]
+        self._index = 0
+
+    def __enter__(self):
+        """Context manager entry: truncate future history."""
+        self._history = self._history[:self._index + 1]
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit: save state if no exception occurred."""
+        if exc_type is None:
+            self._history.append(save_state(self.state))
+            self._index = len(self._history) - 1
+        return False  # Don't suppress exceptions
+
+    def undo(self):
+        """Move back in history. Returns True if successful."""
+        if self._index > 0:
+            self._index -= 1
+            self.state = restore_state(self._history[self._index])
+            return True
+        return False
+
+    def redo(self):
+        """Move forward in history. Returns True if successful."""
+        if self._index < len(self._history) - 1:
+            self._index += 1
+            self.state = restore_state(self._history[self._index])
+            return True
+        return False
+
+    def save_to_history(self):
+        """Truncate future history and save current state."""
+        self._history = self._history[:self._index + 1]
+        self._history.append(save_state(self.state))
+        self._index = len(self._history) - 1
+
+
 def get_box(conf):
     xyz = conf.GetPositions()
     return (xyz.min(axis=0), xyz.max(axis=0))
@@ -540,49 +583,6 @@ def restore_state(saved_state):
                  box=saved_state.box,
                  scale=saved_state.scale,
                  y_offset=saved_state.y_offset)
-
-
-class UndoHistory:
-    """Manages undo/redo history for molecule editing."""
-
-    def __init__(self, state):
-        self.state = state
-        self._history = [save_state(state)]
-        self._index = 0
-
-    def __enter__(self):
-        """Context manager entry: truncate future history."""
-        self._history = self._history[:self._index + 1]
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit: save state if no exception occurred."""
-        if exc_type is None:
-            self._history.append(save_state(self.state))
-            self._index = len(self._history) - 1
-        return False  # Don't suppress exceptions
-
-    def undo(self):
-        """Move back in history. Returns True if successful."""
-        if self._index > 0:
-            self._index -= 1
-            self.state = restore_state(self._history[self._index])
-            return True
-        return False
-
-    def redo(self):
-        """Move forward in history. Returns True if successful."""
-        if self._index < len(self._history) - 1:
-            self._index += 1
-            self.state = restore_state(self._history[self._index])
-            return True
-        return False
-
-    def save_to_history(self):
-        """Truncate future history and save current state."""
-        self._history = self._history[:self._index + 1]
-        self._history.append(save_state(self.state))
-        self._index = len(self._history) - 1
 
 
 def insert_or_modify_atom(stdscr,
