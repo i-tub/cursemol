@@ -129,7 +129,14 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
     return mol_x, mol_y
 
 
-def find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset, tolerance=1):
+def find_atom_at_cursor(mol,
+                        cursor_x,
+                        cursor_y,
+                        box,
+                        scale,
+                        max_y,
+                        y_offset,
+                        tolerance=1):
     """
     Find an atom at or near the cursor position (within tolerance cells).
     Returns atom index or None if no atom found.
@@ -142,12 +149,13 @@ def find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset, to
 
     # Check atoms to find one whose screen position is within tolerance
     for atom in mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf, y_offset, rows)
+        screen_x, screen_y = int_coords_for_atom(atom, box, scale, conf,
+                                                 y_offset, rows)
 
         # Screen position is now directly the terminal position
         # Check if within tolerance
         if (abs(screen_x - cursor_x) <= tolerance and
-            abs(screen_y - cursor_y) <= tolerance):
+                abs(screen_y - cursor_y) <= tolerance):
             return atom.GetIdx()
 
     return None
@@ -283,8 +291,8 @@ def calculate_box_and_scale(mol, max_x, max_y):
     mol_height = screen_height / yscale
 
     # Create box centered on molecule center
-    box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
-           (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+    box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
+           (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
     # Calculate vertical offset to center the displayed content
     mol_display_height = int(mol_height * yscale + 2 * PADDING)
@@ -319,14 +327,14 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
 
     # Color mapping for elements
     element_colors = {
-        'O': 1,   # Red
-        'N': 2,   # Blue
-        'S': 3,   # Yellow
-        'P': 3,   # Yellow
-        'F': 4,   # Green
+        'O': 1,  # Red
+        'N': 2,  # Blue
+        'S': 3,  # Yellow
+        'P': 3,  # Yellow
+        'F': 4,  # Green
         'Cl': 4,  # Green
         'Br': 4,  # Green
-        'I': 4,   # Green
+        'I': 4,  # Green
     }
 
     try:
@@ -379,7 +387,9 @@ def draw_mol(stdscr, mol, box, scale, max_y, y_offset):
             for i, c in enumerate(charge_str):
                 if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
                     screen[charge_y][charge_x + i] = c
-                    screen_colors[charge_y][charge_x + i] = color | (0x100 if is_bold else 0)
+                    screen_colors[charge_y][charge_x +
+                                            i] = color | (0x100
+                                                          if is_bold else 0)
 
     # Display screen without reversing (coordinates are already correct)
     for i in range(len(screen)):
@@ -419,10 +429,10 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Initialize colors
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_RED, -1)     # Oxygen - red
-    curses.init_pair(2, curses.COLOR_BLUE, -1)    # Nitrogen - blue
+    curses.init_pair(1, curses.COLOR_RED, -1)  # Oxygen - red
+    curses.init_pair(2, curses.COLOR_BLUE, -1)  # Nitrogen - blue
     curses.init_pair(3, curses.COLOR_YELLOW, -1)  # Sulfur - yellow
-    curses.init_pair(4, curses.COLOR_GREEN, -1)   # Halogens - green
+    curses.init_pair(4, curses.COLOR_GREEN, -1)  # Halogens - green
 
     stdscr.clear()
 
@@ -609,8 +619,8 @@ def main_loop(stdscr, initial_smiles=None):
                     atom_idx = mol.AddAtom(Chem.Atom(symbol))
 
                     # Convert cursor position to molecule coordinates
-                    mol_x, mol_y = screen_to_mol_coords(
-                        cursor_x, cursor_y, box, scale, max_y, y_offset)
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
+                                                        scale, max_y, y_offset)
 
                     # Set atom position in conformer
                     conf = mol.GetConformer()
@@ -625,7 +635,8 @@ def main_loop(stdscr, initial_smiles=None):
         elif key == ord('x'):
             if mol is not None and box is not None and scale is not None:
                 # First try to find an atom at cursor
-                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
                 if atom_idx is not None:
                     try:
                         mol.RemoveAtom(atom_idx)
@@ -635,7 +646,8 @@ def main_loop(stdscr, initial_smiles=None):
                         pass
                 else:
                     # No atom found, try to delete a bond instead
-                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset)
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, box,
+                                                        scale, max_y, y_offset)
                     atom_pair = find_bond_atoms(mol, mol_x, mol_y)
                     if atom_pair is not None:
                         atom1_idx, atom2_idx = atom_pair
@@ -645,7 +657,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Increase formal charge
         elif key == ord('+'):
             if mol is not None and box is not None and scale is not None:
-                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
                 if atom_idx is not None:
                     atom = mol.GetAtomWithIdx(atom_idx)
                     current_charge = atom.GetFormalCharge()
@@ -655,7 +668,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Decrease formal charge
         elif key == ord('-'):
             if mol is not None and box is not None and scale is not None:
-                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box, scale, max_y, y_offset)
+                atom_idx = find_atom_at_cursor(mol, cursor_x, cursor_y, box,
+                                               scale, max_y, y_offset)
                 if atom_idx is not None:
                     atom = mol.GetAtomWithIdx(atom_idx)
                     current_charge = atom.GetFormalCharge()
@@ -686,13 +700,17 @@ def main_loop(stdscr, initial_smiles=None):
                         mol_height = screen_height / scale[1]
 
                         # Create box centered on molecule center
-                        box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
-                               (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+                        box = ((center_x - mol_width / 2,
+                                center_y - mol_height / 2, 0.0),
+                               (center_x + mol_width / 2,
+                                center_y + mol_height / 2, 0.0))
 
                         # Recalculate y_offset
-                        mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+                        mol_display_height = int(mol_height * scale[1] +
+                                                 2 * PADDING)
                         available_height = max_y - 2
-                        y_offset = max(0, (available_height - mol_display_height) // 2)
+                        y_offset = max(
+                            0, (available_height - mol_display_height) // 2)
 
                     need_redraw = True
                 except Exception:
@@ -722,8 +740,9 @@ def main_loop(stdscr, initial_smiles=None):
                 mol_height = screen_height / yscale
 
                 # New box centered on the same point
-                box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
-                       (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+                box = ((center_x - mol_width / 2, center_y - mol_height / 2,
+                        0.0), (center_x + mol_width / 2,
+                               center_y + mol_height / 2, 0.0))
 
                 # Recalculate y_offset for new scale
                 mol_display_height = int(mol_height * yscale + 2 * PADDING)
@@ -755,8 +774,9 @@ def main_loop(stdscr, initial_smiles=None):
                 mol_height = screen_height / yscale
 
                 # New box centered on the same point
-                box = ((center_x - mol_width/2, center_y - mol_height/2, 0.0),
-                       (center_x + mol_width/2, center_y + mol_height/2, 0.0))
+                box = ((center_x - mol_width / 2, center_y - mol_height / 2,
+                        0.0), (center_x + mol_width / 2,
+                               center_y + mol_height / 2, 0.0))
 
                 # Recalculate y_offset for new scale
                 mol_display_height = int(mol_height * yscale + 2 * PADDING)
