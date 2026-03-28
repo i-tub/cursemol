@@ -285,6 +285,38 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
         return False
 
 
+def recalculate_box_and_offset(mol, scale, max_x, max_y):
+    """
+    Recalculate box and y_offset for a molecule at a given scale.
+    Centers the view on the molecule's actual bounding box.
+    Returns (box, y_offset).
+    """
+    conf = mol.GetConformer(0)
+    actual_box = get_box(conf)
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
+
+    # Calculate center of molecule
+    center_x = (xmin + xmax) / 2
+    center_y = (ymin + ymax) / 2
+
+    # Calculate box dimensions that fill the screen at this scale
+    screen_width = max_x - 2 * PADDING
+    screen_height = max_y - 2 - 2 * PADDING  # Leave room for instructions
+    mol_width = screen_width / scale[0]
+    mol_height = screen_height / scale[1]
+
+    # Create box centered on molecule center
+    box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
+           (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+
+    # Calculate vertical offset to center the displayed content
+    mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+    available_height = max_y - 2
+    y_offset = max(0, (available_height - mol_display_height) // 2)
+
+    return box, y_offset
+
+
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule, centered on screen."""
     conf = mol.GetConformer(0)
@@ -296,24 +328,8 @@ def calculate_box_and_scale(mol, max_x, max_y):
     yscale = xscale * ASPECT_RATIO
     scale = (xscale, yscale)
 
-    # Calculate center of molecule
-    center_x = (xmin + xmax) / 2
-    center_y = (ymin + ymax) / 2
-
-    # Calculate box dimensions that fill the screen at this scale, centered on molecule
-    screen_width = max_x - 2 * PADDING
-    screen_height = max_y - 2 - 2 * PADDING  # Leave room for instructions
-    mol_width = screen_width / xscale
-    mol_height = screen_height / yscale
-
-    # Create box centered on molecule center
-    box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-           (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
-
-    # Calculate vertical offset to center the displayed content
-    mol_display_height = int(mol_height * yscale + 2 * PADDING)
-    available_height = max_y - 2
-    y_offset = max(0, (available_height - mol_display_height) // 2)
+    # Recalculate box and offset at this scale
+    box, y_offset = recalculate_box_and_offset(mol, scale, max_x, max_y)
 
     return box, scale, y_offset
 
@@ -548,6 +564,25 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
+def cleanup_coordinates(history, max_x, max_y):
+    """
+    Regenerate 2D coordinates for the molecule and recenter the view.
+    Keeps the current zoom level. Returns True if successful.
+    """
+    if history.mol is None or history.mol.GetNumAtoms() == 0:
+        return False
+
+    try:
+        AllChem.Compute2DCoords(history.mol)
+        if history.scale is not None:
+            history.box, history.y_offset = recalculate_box_and_offset(
+                history.mol, history.scale, max_x, max_y)
+        return True
+    except Exception:
+        logging.exception("Error regenerating coordinates")
+        return False
+
+
 def zoom_view(history, max_x, max_y, zoom_factor):
     """
     Zoom in or out by the given factor.
@@ -656,31 +691,7 @@ def append_smiles_fragment(stdscr, mol, box, scale, y_offset, cursor_x,
                     AllChem.Compute2DCoords(mol, coordMap=coord_map)
 
                     # Update box to show all atoms while keeping same scale
-                    conf = mol.GetConformer()
-                    actual_box = get_box(conf)
-                    (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
-
-                    # Calculate center of entire molecule (old + new)
-                    center_x = (xmin + xmax) / 2
-                    center_y = (ymin + ymax) / 2
-
-                    # Calculate box dimensions at current scale
-                    screen_width = max_x - 2 * PADDING
-                    screen_height = max_y - 2 - 2 * PADDING
-                    mol_width = screen_width / scale[0]
-                    mol_height = screen_height / scale[1]
-
-                    # Create box centered on new molecule center
-                    box = ((center_x - mol_width / 2, center_y - mol_height / 2,
-                            0.0), (center_x + mol_width / 2,
-                                   center_y + mol_height / 2, 0.0))
-
-                    # Recalculate y_offset
-                    mol_display_height = int(mol_height * scale[1] +
-                                             2 * PADDING)
-                    available_height = max_y - 2
-                    y_offset = max(0,
-                                   (available_height - mol_display_height) // 2)
+                    box, y_offset = recalculate_box_and_offset(mol, scale, max_x, max_y)
 
                     return mol, box, scale, y_offset
             except Exception as e:
@@ -962,45 +973,9 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == 12:  # Ctrl-L
-            if history.mol is not None and history.mol.GetNumAtoms() > 0:
-                try:
-                    with history:
-                        AllChem.Compute2DCoords(history.mol)
-
-                        # Recenter molecule while keeping zoom level
-                        if history.scale is not None:
-                            # Get actual bounding box of molecule
-                            conf = history.mol.GetConformer(0)
-                            actual_box = get_box(conf)
-                            (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
-
-                            # Calculate center of molecule
-                            center_x = (xmin + xmax) / 2
-                            center_y = (ymin + ymax) / 2
-
-                            # Calculate box dimensions that fill the screen at current scale
-                            screen_width = max_x - 2 * PADDING
-                            screen_height = max_y - 2 - 2 * PADDING
-                            mol_width = screen_width / history.scale[0]
-                            mol_height = screen_height / history.scale[1]
-
-                            # Create box centered on molecule center
-                            history.box = ((center_x - mol_width / 2,
-                                            center_y - mol_height / 2, 0.0),
-                                           (center_x + mol_width / 2,
-                                            center_y + mol_height / 2, 0.0))
-
-                            # Recalculate y_offset
-                            mol_display_height = int(mol_height *
-                                                     history.scale[1] +
-                                                     2 * PADDING)
-                            available_height = max_y - 2
-                            history.y_offset = max(
-                                0, (available_height - mol_display_height) // 2)
-
+            with history:
+                if cleanup_coordinates(history, max_x, max_y):
                     need_redraw = True
-                except Exception:
-                    logging.exception("Error regenerating coordinates (Ctrl-L)")
                     pass
 
         # Zoom out
