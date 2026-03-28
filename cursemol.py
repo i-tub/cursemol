@@ -1025,6 +1025,15 @@ def main_loop(stdscr, initial_smiles=None):
     curses.curs_set(1)  # Show cursor
     curses.use_default_colors()  # Use terminal's default colors
 
+    # Reduce escape key delay (default is 1000ms)
+    # This makes Esc key more responsive in selection mode
+    try:
+        curses.set_escdelay(25)  # 25ms is usually sufficient
+    except AttributeError:
+        # set_escdelay() not available (Python < 3.9)
+        # Can set ESCDELAY environment variable before running instead
+        pass
+
     # Initialize colors
     curses.start_color()
     curses.init_pair(1, curses.COLOR_RED, -1)  # Oxygen - red
