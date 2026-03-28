@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Cursemol - A simple curses-based program for displaying molecules.
+CurseMol - A simple curses-based program for displaying molecules.
 
 Controls:
   h, j, k, l - Move cursor left, down, up, right (vi-style)
@@ -17,6 +17,7 @@ Controls:
   u          - Undo
   r          - Redo
   Ctrl-L     - Cleanup/regenerate coordinates
+  ?          - Show this help
   q          - Quit
 """
 
@@ -508,7 +509,6 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Instructions
     instructions = [
-        "Cursemol - Display molecules",
         "hjkl: move | HJKL: shift | s/S: SMILES | i/a/c/n/o: insert | x: del | +/-: charge | <>: zoom | u/r: undo/redo | ^L: clean | 0-3: bond | q: quit"
     ]
 
@@ -1017,6 +1017,30 @@ def main_loop(stdscr, initial_smiles=None):
                 history_index += 1
                 mol, box, scale, y_offset = restore_state(history[history_index])
                 need_redraw = True
+
+        # Help
+        elif key == ord('?'):
+            stdscr.clear()
+            # Display the help text from the docstring
+            help_text = __doc__.strip()
+            help_lines = help_text.split('\n')
+
+            # Display help text
+            for i, line in enumerate(help_lines):
+                try:
+                    stdscr.addstr(i, 0, line[:max_x - 1])
+                except curses.error:
+                    pass
+
+            # Add "press any key" message
+            try:
+                stdscr.addstr(len(help_lines) + 1, 0, "Press any key to exit help")
+            except curses.error:
+                pass
+
+            stdscr.refresh()
+            stdscr.getch()  # Wait for any key
+            need_redraw = True
 
         # Quit
         elif key == ord('q'):
