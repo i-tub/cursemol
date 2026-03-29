@@ -178,10 +178,11 @@ def screen_y_to_mol_y(screen_y, box_min_y, scale_y, y_offset, rows):
     return (y_from_bottom - PADDING - y_offset) / scale_y + box_min_y
 
 
-def screen_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
+def screen_coords_for_atom(atom, state, conf, rows):
+    """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
-    x = PADDING + int((pos.x - box[0][0]) * scale[0])
-    y = mol_y_to_screen_y(pos.y, box[0][1], scale[1], y_offset, rows)
+    x = PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
+    y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1], state.y_offset, rows)
     return x, y
 
 
@@ -262,8 +263,7 @@ def iter_atom_screen_positions(state, screen_dims):
 
     conf = state.mol.GetConformer()
     for atom in state.mol.GetAtoms():
-        x, y = screen_coords_for_atom(atom, state.box, state.scale, conf,
-                                      state.y_offset, screen_dims.rows)
+        x, y = screen_coords_for_atom(atom, state, conf, screen_dims.rows)
         yield atom, x, y
 
 
@@ -373,8 +373,7 @@ def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
 
 def reverse_bond(bond):
     """
-    Reverse bond by deleting and re-adding with swapped atoms
-    we don't know the direction.
+    Reverse bond by deleting and re-adding with swapped atoms.
     """
     mol = bond.GetOwningMol()
     a1 = bond.GetBeginAtomIdx()
@@ -563,12 +562,8 @@ def fill_screen_buffer(state, screen_dims):
     # Draw bonds
     try:
         for bond in state.mol.GetBonds():
-            x1, y1 = screen_coords_for_atom(bond.GetBeginAtom(), state.box,
-                                            state.scale, conf, state.y_offset,
-                                            rows)
-            x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state.box,
-                                            state.scale, conf, state.y_offset,
-                                            rows)
+            x1, y1 = screen_coords_for_atom(bond.GetBeginAtom(), state, conf, rows)
+            x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state, conf, rows)
             # Only draw if bond type is in our dictionary
             if bond_char := BOND_CHARS.get(bond.GetBondType()):
                 bond_dir_char = BOND_DIR_CHARS.get(bond.GetBondDir(), bond_char)
