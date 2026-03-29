@@ -5,7 +5,7 @@ CurseMol - Molecular sketcher for the terminally insane
 Controls:
   h, j, k, l       - Move cursor left, down, up, right
   H, J, K, L       - Move cursor faster (10 cells horizontal, 4 cells vertical)
-  Ctrl-H/J/K/L     - Translate molecule left, down, up, right
+  m                - Enter move mode (hjkl moves molecule, Esc to exit)
   s                - Enter a SMILES string to replace the current molecule
   S                - Toggle SMILES display
   i                - Insert/modify atom at cursor position
@@ -22,7 +22,7 @@ Controls:
   @                - Clear canvas (reset to blank slate)
   u                - Undo
   r                - Redo
-  Ctrl-R           - Clean up (regenerate coordinates)
+  Ctrl-L           - Clean up (regenerate coordinates)
   ?                - Show this help
   q                - Quit and print SMILES to stdout
 """
@@ -73,8 +73,8 @@ ELEMENT_COLORS = {
 # Instructions (try to keep lines under 80 characters and more or less
 # balanced)
 INSTRUCTIONS = [
-    "hjkl: move | HJKL: fast move | ^HJKL: translate | s/S: SMILES | i/a/c/n/o: ins",
-    "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^R: clean | 123/wd: bond | ?: help"
+    "hjkl: move | HJKL: fast move | m: move mol | s/S: SMILES | i/a/c/n/o: insert",
+    "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
 ]
 
 
@@ -1106,6 +1106,7 @@ def redraw_screen(stdscr,
                   max_x,
                   max_y,
                   selection_mode=False,
+                  move_mode=False,
                   selection_anchor_x=None,
                   selection_anchor_y=None,
                   cursor_x=None,
@@ -1138,11 +1139,24 @@ def redraw_screen(stdscr,
                             cursor_x, cursor_y, max_x, max_y)
 
     # Draw instructions at the bottom
-    for i, line in enumerate(INSTRUCTIONS):
-        try:
-            stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
-        except curses.error:
-            pass
+    if move_mode:
+        # Show move mode instructions
+        move_instructions = [
+            "",
+            "hjkl: move molecule | Esc: leave move mode | q: quit"
+        ]
+        for i, line in enumerate(move_instructions):
+            try:
+                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
+            except curses.error:
+                pass
+    else:
+        # Show normal instructions
+        for i, line in enumerate(INSTRUCTIONS):
+            try:
+                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
+            except curses.error:
+                pass
 
 
 def main_loop(stdscr, initial_smiles=None):
@@ -1202,11 +1216,14 @@ def main_loop(stdscr, initial_smiles=None):
     selection_anchor_x = None
     selection_anchor_y = None
 
+    # Move mode state
+    move_mode = False
+
     while True:
         # Only redraw everything when necessary
         if need_redraw:
             redraw_screen(stdscr, state, show_smiles, max_x, max_y,
-                          selection_mode, selection_anchor_x,
+                          selection_mode, move_mode, selection_anchor_x,
                           selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
 
@@ -1242,18 +1259,43 @@ def main_loop(stdscr, initial_smiles=None):
             # Ignore other special keys we don't handle
             continue
 
-        # Handle movement (vi-style) - works in both normal and selection mode
+        # Handle movement (vi-style)
         if key in 'hjkl':
-            if key == 'h':  # left
-                cursor_x = max(0, cursor_x - 1)
-            elif key == 'j':  # down
-                cursor_y = min(canvas_max_y - 1, cursor_y + 1)
-            elif key == 'k':  # up
-                cursor_y = max(0, cursor_y - 1)
-            elif key == 'l':  # right
-                cursor_x = min(max_x - 1, cursor_x + 1)
-            if selection_mode:
+            if move_mode:
+                # In move mode, hjkl translates the molecule
+                if key == 'h':  # shift left
+                    shift_view(state, 1, 0)
+                elif key == 'j':  # shift down
+                    shift_view(state, 0, 1)
+                elif key == 'k':  # shift up
+                    shift_view(state, 0, -1)
+                elif key == 'l':  # shift right
+                    shift_view(state, -1, 0)
                 need_redraw = True
+            else:
+                # Normal mode: move cursor
+                if key == 'h':  # left
+                    cursor_x = max(0, cursor_x - 1)
+                elif key == 'j':  # down
+                    cursor_y = min(canvas_max_y - 1, cursor_y + 1)
+                elif key == 'k':  # up
+                    cursor_y = max(0, cursor_y - 1)
+                elif key == 'l':  # right
+                    cursor_x = min(max_x - 1, cursor_x + 1)
+                if selection_mode:
+                    need_redraw = True
+
+        # Special handling for move mode
+        elif move_mode:
+            if key == '\x1b':  # Escape
+                # Exit move mode
+                move_mode = False
+                need_redraw = True
+            elif key == 'q':
+                # Allow quitting from move mode
+                return get_smiles(state.mol)
+            # Ignore all other keys in move mode
+            continue
 
         # Special handling for selection mode
         elif selection_mode:
@@ -1293,16 +1335,9 @@ def main_loop(stdscr, initial_smiles=None):
             if selection_mode:
                 need_redraw = True
 
-        # Translate molecule (Ctrl-H/J/K/L)
-        elif key in '\x08\x0a\x0b\x0c':  # Ctrl-H, Ctrl-J, Ctrl-K, Ctrl-L
-            if key == '\x08':  # Ctrl-H: shift left
-                shift_view(state, 1, 0)
-            elif key == '\x0a':  # Ctrl-J: shift down
-                shift_view(state, 0, 1)
-            elif key == '\x0b':  # Ctrl-K: shift up
-                shift_view(state, 0, -1)
-            elif key == '\x0c':  # Ctrl-L: shift right
-                shift_view(state, -1, 0)
+        # Enter move mode
+        elif key == 'm':
+            move_mode = True
             need_redraw = True
 
         # Enter SMILES string
@@ -1384,8 +1419,8 @@ def main_loop(stdscr, initial_smiles=None):
                 history.push()
                 need_redraw = True
 
-        # Cleanup/regenerate coordinates (Ctrl-R)
-        elif key == '\x12':  # Ctrl-R
+        # Cleanup/regenerate coordinates (Ctrl-L)
+        elif key == '\x0c':  # Ctrl-L
             if cleanup_coordinates(state, max_x, max_y):
                 history.state = state
                 history.push()
