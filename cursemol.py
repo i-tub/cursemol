@@ -244,23 +244,26 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
     return mol_x, mol_y
 
 
+def iter_atom_screen_positions(state, screen_dims):
+    """Yield (atom, screen_x, screen_y) for each atom in molecule."""
+    if state.mol.GetNumAtoms() == 0:
+        return
+
+    conf = state.mol.GetConformer()
+    for atom in state.mol.GetAtoms():
+        x, y = int_coords_for_atom(
+            atom, state.box, state.scale, conf,
+            state.y_offset, screen_dims.rows
+        )
+        yield atom, x, y
+
+
 def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
     """
     Find an atom at or near the cursor position (within tolerance cells).
     Returns atom index or None if no atom found.
     """
-    if state.mol.GetNumAtoms() == 0:
-        return None
-
-    conf = state.mol.GetConformer()
-
-    # Check atoms to find one whose screen position is within tolerance
-    for atom in state.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
-                                                 conf, state.y_offset, screen_dims.rows)
-
-        # Screen position is now directly the terminal position
-        # Check if within tolerance
+    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
         if (abs(screen_x - cursor_x) <= tolerance and
                 abs(screen_y - cursor_y) <= tolerance):
             return atom.GetIdx()
@@ -273,19 +276,11 @@ def find_nearest_atom(state, cursor_x, cursor_y, screen_dims):
     Find the atom nearest to the cursor position.
     Returns (atom_index, screen_x, screen_y) or None if no atoms.
     """
-    if state.mol.GetNumAtoms() == 0:
-        return None
-
-    conf = state.mol.GetConformer()
-
     min_dist_sq = float('inf')
     nearest_atom = None
     nearest_pos = None
 
-    for atom in state.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
-                                                 conf, state.y_offset, screen_dims.rows)
-
+    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
         # Calculate squared distance (avoid sqrt for performance)
         dist_sq = (screen_x - cursor_x) ** 2 + (screen_y - cursor_y) ** 2
 
@@ -309,13 +304,9 @@ def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
     if state.mol.GetNumAtoms() < 2:
         return None
 
-    conf = state.mol.GetConformer()
-
     # Calculate screen positions and distances for all atoms
     distances = []
-    for atom in state.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
-                                                 conf, state.y_offset, screen_dims.rows)
+    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
         dx = screen_x - cursor_x
         dy = screen_y - cursor_y
         dist = math.sqrt(dx * dx + dy * dy)
@@ -576,9 +567,7 @@ def fill_screen_buffer(state, screen_dims):
         pass
 
     # Draw atoms
-    for atom in state.mol.GetAtoms():
-        x, y = int_coords_for_atom(atom, state.box, state.scale, conf,
-                                   state.y_offset, rows)
+    for atom, x, y in iter_atom_screen_positions(state, screen_dims):
         draw_atom(screen, screen_colors, atom, x, y, rows, cols)
 
     return screen, screen_colors
@@ -742,16 +731,12 @@ def delete_atoms_in_rect(state, x1, y1, x2, y2, screen_dims):
     Delete all atoms whose screen positions fall within the rectangle.
     Returns True if any atoms were deleted, False otherwise.
     """
-    conf = state.mol.GetConformer()
-
     # Normalize rectangle coordinates
     min_x, min_y, max_x, max_y_rect = normalize_rect(x1, y1, x2, y2)
 
     # Find atoms within the rectangle
     atoms_to_delete = []
-    for atom in state.mol.GetAtoms():
-        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
-                                                 conf, state.y_offset, screen_dims.rows)
+    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
         if min_x <= screen_x <= max_x and min_y <= screen_y <= max_y_rect:
             atoms_to_delete.append(atom.GetIdx())
 
