@@ -1197,7 +1197,7 @@ def redraw_screen(stdscr,
     draw_instructions(stdscr, max_x, max_y, move_mode)
 
 
-def main_loop(stdscr, initial_smiles=None):
+def init_curses(stdscr):
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     curses.use_default_colors()  # Use terminal's default colors
@@ -1219,6 +1219,10 @@ def main_loop(stdscr, initial_smiles=None):
     curses.init_pair(4, curses.COLOR_GREEN, -1)  # Halogens - green
 
     stdscr.clear()
+
+
+def main_loop(stdscr, initial_smiles=None):
+    init_curses(stdscr)
 
     # Get screen dimensions
     max_y, max_x = stdscr.getmaxyx()
