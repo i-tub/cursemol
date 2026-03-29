@@ -375,6 +375,10 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
             current_type = bond.GetBondType()
             current_dir = bond.GetBondDir()
 
+            if (current_type == bond_type and bond_dir is None and
+                current_dir == Chem.BondDir.NONE):
+                return False
+
             # Check if bond already has this exact type and direction
             # If so, reverse the bond (swap atoms)
             if (current_type == bond_type and bond_dir is not None and
