@@ -602,7 +602,7 @@ def get_smiles(mol):
 
 def save_state(state):
     """Save current state for undo/redo. Returns a deep copy of the state."""
-    return State(mol=Chem.RWMol(state.mol) if state.mol is not None else None,
+    return State(mol=Chem.RWMol(state.mol),
                  box=state.box,
                  scale=state.scale,
                  y_offset=state.y_offset)
@@ -610,8 +610,7 @@ def save_state(state):
 
 def restore_state(saved_state):
     """Restore state from saved state. Returns a new State object."""
-    return State(mol=Chem.RWMol(saved_state.mol)
-                 if saved_state.mol is not None else None,
+    return State(mol=Chem.RWMol(saved_state.mol),
                  box=saved_state.box,
                  scale=saved_state.scale,
                  y_offset=saved_state.y_offset)
@@ -1111,12 +1110,10 @@ def redraw_screen(stdscr,
     stdscr.clear()
 
     # Draw molecule if present
-    if (state.mol is not None and state.box is not None and
-            state.scale is not None):
-        draw_mol(stdscr, state, max_y)
+    draw_mol(stdscr, state, max_y)
 
     # Draw SMILES at the top if enabled (after molecule so it's on top)
-    if show_smiles and state.mol is not None:
+    if show_smiles:
         current_smiles = get_smiles(state.mol)
         # Wrap SMILES to screen width
         row = 0
@@ -1283,41 +1280,38 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
-            if state.mol is not None and state.box is not None and state.scale is not None:
-                result = insert_or_modify_atom(stdscr, state, cursor_x,
-                                               cursor_y, max_y)
-                if result is not None:
-                    state.mol = result
-                    history.state = state
-                    history.push()
+            result = insert_or_modify_atom(stdscr, state, cursor_x,
+                                           cursor_y, max_y)
+            if result is not None:
+                state.mol = result
+                history.state = state
+                history.push()
 
-                # Always redraw to clear the prompt
-                need_redraw = True
+            # Always redraw to clear the prompt
+            need_redraw = True
 
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
-            if state.mol is not None and state.box is not None and state.scale is not None:
-                symbol = key.upper()
-                result = insert_or_modify_atom(stdscr, state, cursor_x,
-                                               cursor_y, max_y, symbol)
-                if result is not None:
-                    state.mol = result
-                    history.state = state
-                    history.push()
-                    need_redraw = True
+            symbol = key.upper()
+            result = insert_or_modify_atom(stdscr, state, cursor_x,
+                                           cursor_y, max_y, symbol)
+            if result is not None:
+                state.mol = result
+                history.state = state
+                history.push()
+                need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
-            if state.mol is not None and state.box is not None and state.scale is not None:
-                result = append_smiles_fragment(stdscr, state, cursor_x,
-                                                cursor_y, max_x, max_y)
-                if result is not None:
-                    state = result
-                    history.state = state
-                    history.push()
+            result = append_smiles_fragment(stdscr, state, cursor_x,
+                                            cursor_y, max_x, max_y)
+            if result is not None:
+                state = result
+                history.state = state
+                history.push()
 
-                # Always redraw to clear the prompt
-                need_redraw = True
+            # Always redraw to clear the prompt
+            need_redraw = True
 
         # Delete atom or bond at cursor position
         elif key == 'x':
