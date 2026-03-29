@@ -21,8 +21,7 @@ Controls:
   1, 2, 3          - Add bond or change bond (order 1/2/3) between nearest atoms
   w, d             - Add/change to wedge or dash bond (press again to reverse)
   @                - Clear canvas (reset to blank slate)
-  u                - Undo
-  r                - Redo
+  u, r             - Undo/redo
   Ctrl-L           - Clean up (regenerate coordinates)
   ?                - Show this help
   q                - Quit and print SMILES to stdout
@@ -1140,7 +1139,7 @@ def draw_instructions(stdscr, max_x, max_y, move_mode=False):
         # Show move mode instructions
         move_instructions = [
             "",
-            "hjkl: move molecule | Esc: leave move mode | q: quit"
+            "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
         ]
         for i, line in enumerate(move_instructions):
             try:
@@ -1326,7 +1325,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Special handling for move mode
         elif move_mode:
-            if key == '\x1b':  # Escape
+            if key in '\x1b\n':  # Escape or Enter
                 # Exit move mode
                 move_mode = False
                 need_redraw = True
