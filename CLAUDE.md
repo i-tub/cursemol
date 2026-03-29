@@ -63,7 +63,7 @@ Key constants:
 
 Functions to convert between coordinate systems:
 - `screen_to_mol_coords()`: cursor position → molecular coordinates
-- `int_coords_for_atom()`: atom → screen position
+- `screen_coords_for_atom()`: atom → screen position
 - `recalculate_box_and_offset()`: Centers molecule after modifications
 
 ### RDKit Integration

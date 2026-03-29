@@ -178,7 +178,7 @@ def screen_y_to_mol_y(screen_y, box_min_y, scale_y, y_offset, rows):
     return (y_from_bottom - PADDING - y_offset) / scale_y + box_min_y
 
 
-def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
+def screen_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - box[0][0]) * scale[0])
     y = mol_y_to_screen_y(pos.y, box[0][1], scale[1], y_offset, rows)
@@ -186,6 +186,10 @@ def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
 
 
 def draw_line(screen, char, char2, x1, y1, x2, y2):
+    """
+    Draw a line from (x1, y1) to (x2, y2) using `char` for the first half of the
+    line and `char2` for the second half.
+    """
     vertical = False
     if abs(x2 - x1) < abs(y2 - y1):
         x1, y1 = y1, x1
@@ -243,7 +247,7 @@ def enter_element(stdscr, max_y):
 
 def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
-    # Reverse the coordinate transformation from int_coords_for_atom
+    # Reverse the coordinate transformation from screen_coords_for_atom
     mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
     mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset,
                               screen_dims.rows)
@@ -258,8 +262,8 @@ def iter_atom_screen_positions(state, screen_dims):
 
     conf = state.mol.GetConformer()
     for atom in state.mol.GetAtoms():
-        x, y = int_coords_for_atom(atom, state.box, state.scale, conf,
-                                   state.y_offset, screen_dims.rows)
+        x, y = screen_coords_for_atom(atom, state.box, state.scale, conf,
+                                      state.y_offset, screen_dims.rows)
         yield atom, x, y
 
 
@@ -559,12 +563,12 @@ def fill_screen_buffer(state, screen_dims):
     # Draw bonds
     try:
         for bond in state.mol.GetBonds():
-            x1, y1 = int_coords_for_atom(bond.GetBeginAtom(), state.box,
-                                         state.scale, conf, state.y_offset,
-                                         rows)
-            x2, y2 = int_coords_for_atom(bond.GetEndAtom(), state.box,
-                                         state.scale, conf, state.y_offset,
-                                         rows)
+            x1, y1 = screen_coords_for_atom(bond.GetBeginAtom(), state.box,
+                                            state.scale, conf, state.y_offset,
+                                            rows)
+            x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state.box,
+                                            state.scale, conf, state.y_offset,
+                                            rows)
             # Only draw if bond type is in our dictionary
             if bond_char := BOND_CHARS.get(bond.GetBondType()):
                 bond_dir_char = BOND_DIR_CHARS.get(bond.GetBondDir(), bond_char)
@@ -1241,9 +1245,9 @@ def main_loop(stdscr, initial_smiles=None):
     while True:
         # Only redraw everything when necessary
         if need_redraw:
-            redraw_screen(stdscr, state, show_smiles, screen_dims,
-                          mode, selection_anchor_x,
-                          selection_anchor_y, cursor_x, cursor_y)
+            redraw_screen(stdscr, state, show_smiles, screen_dims, mode,
+                          selection_anchor_x, selection_anchor_y, cursor_x,
+                          cursor_y)
             need_redraw = False
 
         # Move cursor to current position
