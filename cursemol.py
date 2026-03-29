@@ -844,29 +844,11 @@ def clear_canvas(state, screen_dims):
     Clear the canvas and reset to blank slate with default settings.
     Modifies state in place.
     """
-    # Create empty molecule
-    mol = Chem.RWMol()
-    conf = Chem.Conformer()
-    mol.AddConformer(conf)
-
-    # Default box: 20 angstroms centered at origin
-    box_size = 10.0
-    box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
-
-    # Use default scale
-    xscale = DEFAULT_SCALE
-    yscale = xscale * ASPECT_RATIO
-    scale = (xscale, yscale)
-
-    # Center vertically
-    mol_height = int(2 * box_size * yscale + 2 * PADDING)
-    y_offset = max(0, (screen_dims.rows - mol_height) // 2)
-
-    # Update state in place
-    state.mol = mol
-    state.box = box
-    state.scale = scale
-    state.y_offset = y_offset
+    empty = create_empty_state(screen_dims)
+    state.mol = empty.mol
+    state.box = empty.box
+    state.scale = empty.scale
+    state.y_offset = empty.y_offset
 
 
 def show_help(stdscr, screen_dims):
