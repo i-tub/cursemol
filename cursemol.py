@@ -1114,12 +1114,23 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
         pass
 
 
-def draw_instructions(stdscr, screen_dims, move_mode=False):
+def draw_instructions(stdscr, screen_dims, move_mode=False, selection_mode=False):
     """Draw instructions at the bottom of the screen."""
-    if move_mode:
+    if selection_mode:
+        # Show selection mode instructions
+        selection_instructions = [
+            "[Area delete mode]",
+            "hjkl: move | HJKL: fast | Enter: delete | Esc: cancel | q: quit"
+        ]
+        for i, line in enumerate(selection_instructions):
+            try:
+                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0, line[:screen_dims.max_x - 1])
+            except curses.error:
+                pass
+    elif move_mode:
         # Show move mode instructions
         move_instructions = [
-            "",
+            "[Move molecule mode]",
             "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
         ]
         for i, line in enumerate(move_instructions):
@@ -1174,7 +1185,7 @@ def redraw_screen(stdscr,
                             cursor_x, cursor_y, screen_dims)
 
     # Draw instructions at the bottom
-    draw_instructions(stdscr, screen_dims, move_mode)
+    draw_instructions(stdscr, screen_dims, move_mode, selection_mode)
 
 
 def init_curses(stdscr):
@@ -1305,6 +1316,19 @@ def main_loop(stdscr, initial_smiles=None):
                 if selection_mode:
                     need_redraw = True
 
+        # Fast cursor movement
+        elif key in 'HJKL':
+            if key == 'H':  # fast left
+                cursor_x = max(0, cursor_x - 10)
+            elif key == 'J':  # fast down
+                cursor_y = min(screen_dims.rows - 1, cursor_y + int(10 * ASPECT_RATIO))
+            elif key == 'K':  # fast up
+                cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
+            elif key == 'L':  # fast right
+                cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
+            if selection_mode:
+                need_redraw = True
+
         # Special handling for move mode
         elif move_mode:
             if key in '\x1b\n':  # Escape or Enter
@@ -1338,21 +1362,9 @@ def main_loop(stdscr, initial_smiles=None):
             elif key == 'q':
                 # Allow quitting from selection mode
                 return get_smiles(state.mol)
-            # Ignore all other keys in selection mode
-            continue
-
-        # Fast cursor movement
-        elif key in 'HJKL':
-            if key == 'H':  # fast left
-                cursor_x = max(0, cursor_x - 10)
-            elif key == 'J':  # fast down
-                cursor_y = min(screen_dims.rows - 1, cursor_y + int(10 * ASPECT_RATIO))
-            elif key == 'K':  # fast up
-                cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
-            elif key == 'L':  # fast right
-                cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
-            if selection_mode:
-                need_redraw = True
+            else:
+                # Ignore all other keys in selection mode
+                continue
 
         # Snap to nearest atom
         elif key == ' ':
