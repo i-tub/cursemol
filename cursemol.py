@@ -1121,7 +1121,7 @@ def draw_instructions(stdscr, screen_dims, move_mode=False, selection_mode=False
         # Show selection mode instructions
         selection_instructions = [
             "[Area delete mode]",
-            "hjkl: move | HJKL: fast | Enter: delete | Esc: cancel | q: quit"
+            "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
         ]
         for i, line in enumerate(selection_instructions):
             try:
@@ -1344,7 +1344,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Special handling for selection mode
         elif selection_mode:
-            if key in '\r\n':  # Enter
+            if key in '\nx':  # Enter or x commits delete
                 # Delete atoms in selection
                 if delete_atoms_in_rect(state, selection_anchor_x,
                                         selection_anchor_y, cursor_x, cursor_y,
