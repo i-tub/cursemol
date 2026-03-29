@@ -3,27 +3,28 @@
 CurseMol - Molecular sketcher for the terminally insane
 
 Controls:
-  h, j, k, l - Move cursor left, down, up, right
-  H, J, K, L - Translate molecule left, down, up, down, right
-  s          - Enter a SMILES string to replace the current molecule
-  S          - Toggle SMILES display
-  i          - Insert/modify atom at cursor position
-  a          - Append atoms from SMILES to atom or bond under cursor
-               (appending to a bond forms a ring by connecting the bond atoms
-               to the first and last atoms from the SMILES)
-  c, n, o    - Insert/modify carbon/nitrogen/oxygen atom
-  x          - Delete atom or bond
-  X          - Area delete (select rectangle, Enter to delete, Esc to cancel)
-  +, -       - Increase/decrease formal charge on atom
-  <, >       - Zoom out/in
-  1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
-  w, d       - Add/change to wedge or dash bond (press again to reverse)
-  @          - Clear canvas (reset to blank slate)
-  u          - Undo
-  r          - Redo
-  Ctrl-L     - Clean up (regenerate coordinates)
-  ?          - Show this help
-  q          - Quit and print SMILES to stdout
+  h, j, k, l       - Move cursor left, down, up, right
+  H, J, K, L       - Move cursor faster (10 cells horizontal, 4 cells vertical)
+  Ctrl-H/J/K/L     - Translate molecule left, down, up, right
+  s                - Enter a SMILES string to replace the current molecule
+  S                - Toggle SMILES display
+  i                - Insert/modify atom at cursor position
+  a                - Append atoms from SMILES to atom or bond under cursor
+                     (appending to a bond forms a ring by connecting the bond
+                     atoms to the first and last atoms from the SMILES)
+  c, n, o          - Insert/modify carbon/nitrogen/oxygen atom
+  x                - Delete atom or bond
+  X                - Area delete (select rectangle, Enter to delete, Esc to cancel)
+  +, -             - Increase/decrease formal charge on atom
+  <, >             - Zoom out/in
+  1, 2, 3          - Add bond or change bond (order 1/2/3) between nearest atoms
+  w, d             - Add/change to wedge or dash bond (press again to reverse)
+  @                - Clear canvas (reset to blank slate)
+  u                - Undo
+  r                - Redo
+  Ctrl-R           - Clean up (regenerate coordinates)
+  ?                - Show this help
+  q                - Quit and print SMILES to stdout
 """
 
 import argparse
@@ -72,8 +73,8 @@ ELEMENT_COLORS = {
 # Instructions (try to keep lines under 80 characters and more or less
 # balanced)
 INSTRUCTIONS = [
-    "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
-    "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | @: clear | ?: help"
+    "hjkl: move | HJKL: fast move | ^HJKL: translate | s/S: SMILES | i/a/c/n/o: ins",
+    "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^R: clean | 123/wd: bond | ?: help"
 ]
 
 
@@ -1219,6 +1220,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Get user input
         key_code = stdscr.getch()
+        logging.critical(f"Key: {key_code}")
 
         # Handle terminal resize
         if key_code == curses.KEY_RESIZE:
@@ -1278,15 +1280,28 @@ def main_loop(stdscr, initial_smiles=None):
             # Ignore all other keys in selection mode
             continue
 
-        # Shift molecule (move all atoms)
+        # Fast cursor movement
         elif key in 'HJKL':
-            if key == 'H':  # shift left
+            if key == 'H':  # fast left
+                cursor_x = max(0, cursor_x - 10)
+            elif key == 'J':  # fast down
+                cursor_y = min(canvas_max_y - 1, cursor_y + int(10 * ASPECT_RATIO))
+            elif key == 'K':  # fast up
+                cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
+            elif key == 'L':  # fast right
+                cursor_x = min(max_x - 1, cursor_x + 10)
+            if selection_mode:
+                need_redraw = True
+
+        # Translate molecule (Ctrl-H/J/K/L)
+        elif key in '\x08\x0a\x0b\x0c':  # Ctrl-H, Ctrl-J, Ctrl-K, Ctrl-L
+            if key == '\x08':  # Ctrl-H: shift left
                 shift_view(state, 1, 0)
-            elif key == 'J':  # shift down
+            elif key == '\x0a':  # Ctrl-J: shift down
                 shift_view(state, 0, 1)
-            elif key == 'K':  # shift up
+            elif key == '\x0b':  # Ctrl-K: shift up
                 shift_view(state, 0, -1)
-            elif key == 'L':  # shift right
+            elif key == '\x0c':  # Ctrl-L: shift right
                 shift_view(state, -1, 0)
             need_redraw = True
 
@@ -1369,8 +1384,8 @@ def main_loop(stdscr, initial_smiles=None):
                 history.push()
                 need_redraw = True
 
-        # Cleanup/regenerate coordinates (Ctrl-L)
-        elif key == '\x0c':  # Ctrl-L
+        # Cleanup/regenerate coordinates (Ctrl-R)
+        elif key == '\x12':  # Ctrl-R
             if cleanup_coordinates(state, max_x, max_y):
                 history.state = state
                 history.push()
