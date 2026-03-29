@@ -1170,8 +1170,11 @@ def main_loop(stdscr, initial_smiles=None):
     # Get screen dimensions
     max_y, max_x = stdscr.getmaxyx()
 
+    # Calculate usable canvas height (excluding instruction lines)
+    canvas_max_y = max_y - len(INSTRUCTIONS)
+
     # Starting cursor position (center of screen)
-    cursor_y, cursor_x = max_y // 2, max_x // 2
+    cursor_y, cursor_x = canvas_max_y // 2, max_x // 2
 
     # SMILES string storage
     smiles = initial_smiles or ""
@@ -1220,12 +1223,13 @@ def main_loop(stdscr, initial_smiles=None):
         # Handle terminal resize
         if key_code == curses.KEY_RESIZE:
             max_y, max_x = stdscr.getmaxyx()
+            canvas_max_y = max_y - len(INSTRUCTIONS)
             # Recalculate molecule position for new screen size
             state.box, state.y_offset = recalculate_box_and_offset(
                 state.mol, state.scale, max_x, max_y)
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, max_x - 1)
-            cursor_y = min(cursor_y, max_y - 1)
+            cursor_y = min(cursor_y, canvas_max_y - 1)
             need_redraw = True
             continue
 
@@ -1241,7 +1245,7 @@ def main_loop(stdscr, initial_smiles=None):
             if key == 'h':  # left
                 cursor_x = max(0, cursor_x - 1)
             elif key == 'j':  # down
-                cursor_y = min(max_y - 1, cursor_y + 1)
+                cursor_y = min(canvas_max_y - 1, cursor_y + 1)
             elif key == 'k':  # up
                 cursor_y = max(0, cursor_y - 1)
             elif key == 'l':  # right
