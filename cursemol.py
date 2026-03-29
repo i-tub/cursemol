@@ -1479,6 +1479,33 @@ def main_loop(stdscr, initial_smiles=None):
             return get_smiles(state.mol)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='CurseMol - molecular sketcher for the terminally insane')
+    parser.add_argument(
+        'smiles',
+        nargs='?',
+        help='Initial SMILES string to display (use "-" to read from stdin)')
+    return parser.parse_args()
+
+
+def setup_tty():
+    """
+    If stdin is not a TTY (e.g., piped input), redirect to /dev/tty
+    so curses can read keyboard input.
+    """
+    if sys.stdin.isatty():
+        return
+
+    sys.stdin.close()  # Close the old stdin to avoid resource warning
+    tty_fd = os.open('/dev/tty', os.O_RDONLY)
+    os.dup2(tty_fd, 0)  # Replace fd 0 (stdin) with /dev/tty
+    os.close(tty_fd)
+    sys.stdin = os.fdopen(0, 'r')
+    # Register cleanup to avoid resource warning on exit
+    atexit.register(lambda: sys.stdin.close())
+
+
 def main():
     # Set up logging to file (truncate on start)
     logging.basicConfig(
@@ -1491,29 +1518,14 @@ def main():
     logger = RDLogger.logger()
     logger.setLevel(RDLogger.CRITICAL)
 
-    parser = argparse.ArgumentParser(
-        description='CurseMol - molecular sketcher for the terminally insane')
-    parser.add_argument(
-        'smiles',
-        nargs='?',
-        help='Initial SMILES string to display (use "-" to read from stdin)')
-    args = parser.parse_args()
+    args = parse_args()
 
     # Handle reading from stdin if "-" is provided
     initial_smiles = args.smiles
     if initial_smiles == "-":
         initial_smiles = sys.stdin.readline().strip()
 
-    # If stdin is not a TTY (e.g., piped input), redirect to /dev/tty
-    # so curses can read keyboard input
-    if not sys.stdin.isatty():
-        sys.stdin.close()  # Close the old stdin to avoid resource warning
-        tty_fd = os.open('/dev/tty', os.O_RDONLY)
-        os.dup2(tty_fd, 0)  # Replace fd 0 (stdin) with /dev/tty
-        os.close(tty_fd)
-        sys.stdin = os.fdopen(0, 'r')
-        # Register cleanup to avoid resource warning on exit
-        atexit.register(lambda: sys.stdin.close())
+    setup_tty()
 
     print(curses.wrapper(main_loop, initial_smiles))
 
