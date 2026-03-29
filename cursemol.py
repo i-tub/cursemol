@@ -5,6 +5,7 @@ CurseMol - Molecular sketcher for the terminally insane
 Controls:
   h, j, k, l       - Move cursor left, down, up, right
   H, J, K, L       - Move cursor faster (10 cells horizontal, 4 cells vertical)
+  Space            - Snap cursor to nearest atom
   m                - Enter move mode (hjkl moves molecule, Esc to exit)
   s                - Enter a SMILES string to replace the current molecule
   S                - Toggle SMILES display
@@ -73,7 +74,7 @@ ELEMENT_COLORS = {
 # Instructions (try to keep lines under 80 characters and more or less
 # balanced)
 INSTRUCTIONS = [
-    "hjkl: move | HJKL: fast move | m: move mol | s/S: SMILES | i/a/c/n/o: insert",
+    "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
     "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
 ]
 
@@ -255,6 +256,38 @@ def find_atom_at_cursor(state, cursor_x, cursor_y, max_y, tolerance=1):
                 abs(screen_y - cursor_y) <= tolerance):
             return atom.GetIdx()
 
+    return None
+
+
+def find_nearest_atom(state, cursor_x, cursor_y, max_y):
+    """
+    Find the atom nearest to the cursor position.
+    Returns (atom_index, screen_x, screen_y) or None if no atoms.
+    """
+    if state.mol.GetNumAtoms() == 0:
+        return None
+
+    conf = state.mol.GetConformer()
+    rows = max_y - 2
+
+    min_dist_sq = float('inf')
+    nearest_atom = None
+    nearest_pos = None
+
+    for atom in state.mol.GetAtoms():
+        screen_x, screen_y = int_coords_for_atom(atom, state.box, state.scale,
+                                                 conf, state.y_offset, rows)
+
+        # Calculate squared distance (avoid sqrt for performance)
+        dist_sq = (screen_x - cursor_x) ** 2 + (screen_y - cursor_y) ** 2
+
+        if dist_sq < min_dist_sq:
+            min_dist_sq = dist_sq
+            nearest_atom = atom.GetIdx()
+            nearest_pos = (screen_x, screen_y)
+
+    if nearest_atom is not None:
+        return (nearest_atom, nearest_pos[0], nearest_pos[1])
     return None
 
 
@@ -1339,6 +1372,14 @@ def main_loop(stdscr, initial_smiles=None):
                 cursor_x = min(max_x - 1, cursor_x + 10)
             if selection_mode:
                 need_redraw = True
+
+        # Snap to nearest atom
+        elif key == ' ':
+            result = find_nearest_atom(state, cursor_x, cursor_y, max_y)
+            if result is not None:
+                _, screen_x, screen_y = result
+                cursor_x = screen_x
+                cursor_y = screen_y
 
         # Enter move mode
         elif key == 'm':
