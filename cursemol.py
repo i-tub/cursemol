@@ -143,6 +143,11 @@ def get_box(conf):
     return (xyz.min(axis=0), xyz.max(axis=0))
 
 
+def normalize_rect(x1, y1, x2, y2):
+    """Normalize rectangle coordinates to (min_x, min_y, max_x, max_y)."""
+    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+
+
 def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - box[0][0]) * scale[0])
@@ -745,8 +750,7 @@ def delete_atoms_in_rect(state, x1, y1, x2, y2, max_y):
     rows = max_y - 2
 
     # Normalize rectangle coordinates
-    min_x, max_x = (x1, x2) if x1 <= x2 else (x2, x1)
-    min_y, max_y_rect = (y1, y2) if y1 <= y2 else (y2, y1)
+    min_x, min_y, max_x, max_y_rect = normalize_rect(x1, y1, x2, y2)
 
     # Find atoms within the rectangle
     atoms_to_delete = []
@@ -1098,8 +1102,7 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, max_x, max_y):
 def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
     """Draw a selection rectangle on the screen."""
     # Normalize coordinates
-    min_x, max_x_rect = (x1, x2) if x1 <= x2 else (x2, x1)
-    min_y, max_y_rect = (y1, y2) if y1 <= y2 else (y2, y1)
+    min_x, min_y, max_x_rect, max_y_rect = normalize_rect(x1, y1, x2, y2)
 
     # Draw rectangle using box drawing characters or simple ASCII
     try:
