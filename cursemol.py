@@ -101,14 +101,9 @@ class ScreenDimensions:
     max_y: int
 
     @property
-    def canvas_max_y(self):
-        """Canvas height excluding instruction lines."""
-        return self.max_y - len(INSTRUCTIONS)
-
-    @property
     def rows(self):
-        """Drawable rows (excluding status/instruction lines)."""
-        return self.max_y - 2
+        """Drawable rows (excluding instruction lines)."""
+        return self.max_y - len(INSTRUCTIONS)
 
 
 class UndoHistory:
@@ -1214,7 +1209,7 @@ def main_loop(stdscr, initial_smiles=None):
     screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
 
     # Starting cursor position (center of screen)
-    cursor_y, cursor_x = screen_dims.canvas_max_y // 2, screen_dims.max_x // 2
+    cursor_y, cursor_x = screen_dims.rows // 2, screen_dims.max_x // 2
 
     # SMILES string storage
     smiles = initial_smiles or ""
@@ -1273,7 +1268,7 @@ def main_loop(stdscr, initial_smiles=None):
                 state.mol, state.scale, screen_dims)
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, screen_dims.max_x - 1)
-            cursor_y = min(cursor_y, screen_dims.canvas_max_y - 1)
+            cursor_y = min(cursor_y, screen_dims.rows - 1)
             need_redraw = True
             continue
 
@@ -1302,7 +1297,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if key == 'h':  # left
                     cursor_x = max(0, cursor_x - 1)
                 elif key == 'j':  # down
-                    cursor_y = min(screen_dims.canvas_max_y - 1, cursor_y + 1)
+                    cursor_y = min(screen_dims.rows - 1, cursor_y + 1)
                 elif key == 'k':  # up
                     cursor_y = max(0, cursor_y - 1)
                 elif key == 'l':  # right
@@ -1351,7 +1346,7 @@ def main_loop(stdscr, initial_smiles=None):
             if key == 'H':  # fast left
                 cursor_x = max(0, cursor_x - 10)
             elif key == 'J':  # fast down
-                cursor_y = min(screen_dims.canvas_max_y - 1, cursor_y + int(10 * ASPECT_RATIO))
+                cursor_y = min(screen_dims.rows - 1, cursor_y + int(10 * ASPECT_RATIO))
             elif key == 'K':  # fast up
                 cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
             elif key == 'L':  # fast right
