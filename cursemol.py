@@ -31,6 +31,7 @@ import argparse
 import atexit
 import curses
 from dataclasses import dataclass
+from enum import Enum
 import logging
 import math
 import os
@@ -71,12 +72,18 @@ ELEMENT_COLORS = {
     'I': 4,  # Green
 }
 
-# Instructions (try to keep lines under 80 characters and more or less
-# balanced)
+# Instructions (try to keep lines under 80 characters and balanced)
 INSTRUCTIONS = [
     "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
     "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
 ]
+
+
+class Mode(Enum):
+    """UI mode for the main loop."""
+    NORMAL = "normal"
+    MOVE = "move"
+    SELECT = "select"
 
 
 @dataclass
@@ -1119,51 +1126,37 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
         pass
 
 
-def draw_instructions(stdscr,
-                      screen_dims,
-                      move_mode=False,
-                      selection_mode=False):
+def draw_instructions(stdscr, screen_dims, mode):
     """Draw instructions at the bottom of the screen."""
-    if selection_mode:
+    if mode == Mode.SELECT:
         # Show selection mode instructions
-        selection_instructions = [
+        instructions = [
             "[Area delete mode]",
             "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
         ]
-        for i, line in enumerate(selection_instructions):
-            try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
-                              line[:screen_dims.max_x - 1])
-            except curses.error:
-                pass
-    elif move_mode:
+    elif mode == Mode.MOVE:
         # Show move mode instructions
-        move_instructions = [
+        instructions = [
             "[Move molecule mode]",
             "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
         ]
-        for i, line in enumerate(move_instructions):
-            try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
-                              line[:screen_dims.max_x - 1])
-            except curses.error:
-                pass
     else:
         # Show normal instructions
-        for i, line in enumerate(INSTRUCTIONS):
-            try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
-                              line[:screen_dims.max_x - 1])
-            except curses.error:
-                pass
+        instructions = INSTRUCTIONS
+
+    for i, line in enumerate(instructions):
+        try:
+            stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
+                          line[:screen_dims.max_x - 1])
+        except curses.error:
+            pass
 
 
 def redraw_screen(stdscr,
                   state,
                   show_smiles,
                   screen_dims,
-                  selection_mode=False,
-                  move_mode=False,
+                  mode,
                   selection_anchor_x=None,
                   selection_anchor_y=None,
                   cursor_x=None,
@@ -1190,13 +1183,12 @@ def redraw_screen(stdscr,
                 break
 
     # Draw selection rectangle if in selection mode
-    if (selection_mode and selection_anchor_x is not None and
-            cursor_x is not None):
+    if mode == Mode.SELECT and selection_anchor_x is not None and cursor_x is not None:
         draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
                             cursor_x, cursor_y, screen_dims)
 
     # Draw instructions at the bottom
-    draw_instructions(stdscr, screen_dims, move_mode, selection_mode)
+    draw_instructions(stdscr, screen_dims, mode)
 
 
 def init_curses(stdscr):
@@ -1253,19 +1245,16 @@ def main_loop(stdscr, initial_smiles=None):
     # Track when we need to redraw the entire screen
     need_redraw = True
 
-    # Selection mode state
-    selection_mode = False
+    # UI mode and selection state
+    mode = Mode.NORMAL
     selection_anchor_x = None
     selection_anchor_y = None
-
-    # Move mode state
-    move_mode = False
 
     while True:
         # Only redraw everything when necessary
         if need_redraw:
             redraw_screen(stdscr, state, show_smiles, screen_dims,
-                          selection_mode, move_mode, selection_anchor_x,
+                          mode, selection_anchor_x,
                           selection_anchor_y, cursor_x, cursor_y)
             need_redraw = False
 
@@ -1303,7 +1292,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Handle movement (vi-style)
         if key in 'hjkl':
-            if move_mode:
+            if mode == Mode.MOVE:
                 # In move mode, hjkl translates the molecule
                 if key == 'h':  # shift left
                     shift_view(state, 1, 0)
@@ -1315,7 +1304,7 @@ def main_loop(stdscr, initial_smiles=None):
                     shift_view(state, -1, 0)
                 need_redraw = True
             else:
-                # Normal mode: move cursor
+                # Normal/select mode: move cursor
                 if key == 'h':  # left
                     cursor_x = max(0, cursor_x - 1)
                 elif key == 'j':  # down
@@ -1324,7 +1313,7 @@ def main_loop(stdscr, initial_smiles=None):
                     cursor_y = max(0, cursor_y - 1)
                 elif key == 'l':  # right
                     cursor_x = min(screen_dims.max_x - 1, cursor_x + 1)
-                if selection_mode:
+                if mode == Mode.SELECT:
                     need_redraw = True
 
         # Fast cursor movement
@@ -1338,14 +1327,14 @@ def main_loop(stdscr, initial_smiles=None):
                 cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
             elif key == 'L':  # fast right
                 cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
-            if selection_mode:
+            if mode == Mode.SELECT:
                 need_redraw = True
 
         # Special handling for move mode
-        elif move_mode:
+        elif mode == Mode.MOVE:
             if key in '\x1b\n':  # Escape or Enter
                 # Exit move mode
-                move_mode = False
+                mode = Mode.NORMAL
                 need_redraw = True
             elif key == 'q':
                 # Allow quitting from move mode
@@ -1354,20 +1343,20 @@ def main_loop(stdscr, initial_smiles=None):
             continue
 
         # Special handling for selection mode
-        elif selection_mode:
+        elif mode == Mode.SELECT:
             if key in '\nx':  # Enter or x commits delete
                 # Delete atoms in selection
                 if delete_atoms_in_rect(state, selection_anchor_x,
                                         selection_anchor_y, cursor_x, cursor_y,
                                         screen_dims):
                     history.push(state)
-                selection_mode = False
+                mode = Mode.NORMAL
                 selection_anchor_x = None
                 selection_anchor_y = None
                 need_redraw = True
             elif key == '\x1b':  # Escape
                 # Cancel selection
-                selection_mode = False
+                mode = Mode.NORMAL
                 selection_anchor_x = None
                 selection_anchor_y = None
                 need_redraw = True
@@ -1388,7 +1377,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Enter move mode
         elif key == 'm':
-            move_mode = True
+            mode = Mode.MOVE
             need_redraw = True
 
         # Enter SMILES string
@@ -1446,7 +1435,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Enter area delete (selection) mode
         elif key == 'X':
-            selection_mode = True
+            mode = Mode.SELECT
             selection_anchor_x = cursor_x
             selection_anchor_y = cursor_y
             need_redraw = True
