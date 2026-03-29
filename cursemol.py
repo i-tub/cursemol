@@ -165,13 +165,32 @@ def normalize_rect(x1, y1, x2, y2):
     return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
 
 
+def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
+    """
+    Convert molecular Y coordinate to screen Y coordinate.
+
+    The Y-axis is flipped: terminal Y-axis points down (0 at top),
+    but molecular coordinates point up (higher Y = higher position).
+    Therefore higher molecular Y -> lower screen Y (closer to top).
+    """
+    y_from_bottom = PADDING + y_offset + int((mol_y - box_min_y) * scale_y)
+    return rows - 1 - y_from_bottom
+
+
+def screen_y_to_mol_y(screen_y, box_min_y, scale_y, y_offset, rows):
+    """
+    Convert screen Y coordinate to molecular Y coordinate.
+
+    Reverses the Y-axis flip: terminal Y points down but molecular Y points up.
+    """
+    y_from_bottom = rows - 1 - screen_y
+    return (y_from_bottom - PADDING - y_offset) / scale_y + box_min_y
+
+
 def int_coords_for_atom(atom, box, scale, conf, y_offset=0, rows=0):
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - box[0][0]) * scale[0])
-    # Flip y coordinate so molecules appear right-side up (not reversed)
-    # Higher molecule y -> lower screen y (closer to top)
-    y_from_bottom = PADDING + y_offset + int((pos.y - box[0][1]) * scale[1])
-    y = rows - 1 - y_from_bottom
+    y = mol_y_to_screen_y(pos.y, box[0][1], scale[1], y_offset, rows)
     return x, y
 
 
@@ -233,13 +252,9 @@ def enter_element(stdscr, max_y):
 
 def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
-    # Terminal position is now directly the screen array position
     # Reverse the coordinate transformation from int_coords_for_atom
     mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
-
-    # Reverse the y flipping: cursor_y -> y_from_bottom -> mol_y
-    y_from_bottom = screen_dims.rows - 1 - cursor_y
-    mol_y = (y_from_bottom - PADDING - y_offset) / scale[1] + box[0][1]
+    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset, screen_dims.rows)
 
     return mol_x, mol_y
 
