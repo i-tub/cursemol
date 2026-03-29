@@ -187,46 +187,31 @@ def draw_line(screen, char, char2, x1, y1, x2, y2):
             screen[y][x] = c
 
 
-def enter_smiles(stdscr, max_y):
-    """Prompt user to enter a SMILES string and return it."""
-    # Show prompt at the bottom
-    stdscr.addstr(max_y - 1, 0, "Enter SMILES: ")
+def prompt_user_input(stdscr, max_y, prompt_text):
+    """Display prompt and get user input. Returns empty string on error."""
+    stdscr.addstr(max_y - 1, 0, prompt_text)
     stdscr.clrtoeol()
     stdscr.refresh()
 
-    # Enable echoing and get string input
     curses.echo()
     try:
-        smiles_bytes = stdscr.getstr(max_y - 1, 14)
-        smiles = smiles_bytes.decode('utf-8')
+        input_bytes = stdscr.getstr(max_y - 1, len(prompt_text))
+        return input_bytes.decode('utf-8').strip()
     except Exception:
-        logging.exception("Error in enter_smiles")
-        smiles = ""
+        logging.exception(f"Error in prompt: {prompt_text}")
+        return ""
     finally:
         curses.noecho()
 
-    return smiles
+
+def enter_smiles(stdscr, max_y):
+    """Prompt user to enter a SMILES string and return it."""
+    return prompt_user_input(stdscr, max_y, "Enter SMILES: ")
 
 
 def enter_element(stdscr, max_y):
     """Prompt user to enter an element symbol and return it."""
-    # Show prompt at the bottom
-    stdscr.addstr(max_y - 1, 0, "Element symbol: ")
-    stdscr.clrtoeol()
-    stdscr.refresh()
-
-    # Enable echoing and get string input
-    curses.echo()
-    try:
-        symbol_bytes = stdscr.getstr(max_y - 1, 16)
-        symbol = symbol_bytes.decode('utf-8').strip()
-    except Exception:
-        logging.exception("Error in enter_element")
-        symbol = ""
-    finally:
-        curses.noecho()
-
-    return symbol
+    return prompt_user_input(stdscr, max_y, "Element symbol: ")
 
 
 def screen_to_mol_coords(cursor_x, cursor_y, box, scale, max_y, y_offset):
