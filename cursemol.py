@@ -369,9 +369,8 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
 
                 # Check if bond already has this exact type and direction
                 # If so, reverse the bond (swap atoms)
-                if (current_type == bond_type and
-                    bond_dir is not None and
-                    current_dir == bond_dir):
+                if (current_type == bond_type and bond_dir is not None and
+                        current_dir == bond_dir):
 
                     # Reverse bond by deleting and re-adding with swapped atoms
                     # We can't use atom1_idx and atom2_idx directly because
@@ -380,7 +379,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
                     end_atom_idx = bond.GetEndAtomIdx()
                     mol.RemoveBond(begin_atom_idx, end_atom_idx)
                     bond_idx = mol.AddBond(end_atom_idx, begin_atom_idx,
-                        Chem.BondType.SINGLE) - 1
+                                           Chem.BondType.SINGLE) - 1
                     bond = mol.GetBondWithIdx(bond_idx)
                     bond.SetBondDir(bond_dir)
                 else:
@@ -696,7 +695,11 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
-def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order,
+def create_or_adjust_bond(state,
+                          cursor_x,
+                          cursor_y,
+                          max_y,
+                          bond_order,
                           bond_dir=None):
     """
     Create or adjust bond between two nearest atoms at cursor position.
@@ -712,7 +715,8 @@ def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order,
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
-        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order, bond_dir)
+        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order,
+                           bond_dir)
 
     return False
 
