@@ -86,13 +86,20 @@ class State:
     scale: tuple  # (xscale, yscale)
     y_offset: int
 
+    def copy(self):
+        """Create deep copy for undo/redo."""
+        return State(mol=Chem.RWMol(self.mol),
+                     box=self.box,
+                     scale=self.scale,
+                     y_offset=self.y_offset)
+
 
 class UndoHistory:
     """Manages undo/redo history for molecule editing."""
 
     def __init__(self, state):
         self.state = state
-        self._history = [save_state(state)]
+        self._history = [state.copy()]
         self._index = 0
 
     def __enter__(self):
@@ -103,7 +110,7 @@ class UndoHistory:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit: save state if no exception occurred."""
         if exc_type is None:
-            self._history.append(save_state(self.state))
+            self._history.append(self.state.copy())
             self._index = len(self._history) - 1
         return False  # Don't suppress exceptions
 
@@ -111,7 +118,7 @@ class UndoHistory:
         """Move back in history. Returns True if successful."""
         if self._index > 0:
             self._index -= 1
-            self.state = restore_state(self._history[self._index])
+            self.state = self._history[self._index].copy()
             return True
         return False
 
@@ -119,7 +126,7 @@ class UndoHistory:
         """Move forward in history. Returns True if successful."""
         if self._index < len(self._history) - 1:
             self._index += 1
-            self.state = restore_state(self._history[self._index])
+            self.state = self._history[self._index].copy()
             return True
         return False
 
@@ -127,7 +134,7 @@ class UndoHistory:
         """Truncate future history and save current state."""
         self.state = state
         self._history = self._history[:self._index + 1]
-        self._history.append(save_state(self.state))
+        self._history.append(self.state.copy())
         self._index = len(self._history) - 1
 
 
@@ -637,22 +644,6 @@ def get_smiles(mol):
         logging.exception("get_smiles error")
         mol_for_smiles = mol
     return Chem.MolToSmiles(mol_for_smiles)
-
-
-def save_state(state):
-    """Save current state for undo/redo. Returns a deep copy of the state."""
-    return State(mol=Chem.RWMol(state.mol),
-                 box=state.box,
-                 scale=state.scale,
-                 y_offset=state.y_offset)
-
-
-def restore_state(saved_state):
-    """Restore state from saved state. Returns a new State object."""
-    return State(mol=Chem.RWMol(saved_state.mol),
-                 box=saved_state.box,
-                 scale=saved_state.scale,
-                 y_offset=saved_state.y_offset)
 
 
 def insert_or_modify_atom(stdscr,
