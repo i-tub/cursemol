@@ -123,8 +123,9 @@ class UndoHistory:
             return True
         return False
 
-    def push(self):
+    def push(self, state):
         """Truncate future history and save current state."""
+        self.state = state
         self._history = self._history[:self._index + 1]
         self._history.append(save_state(self.state))
         self._index = len(self._history) - 1
@@ -1309,8 +1310,7 @@ def main_loop(stdscr, initial_smiles=None):
                 if delete_atoms_in_rect(state, selection_anchor_x,
                                         selection_anchor_y, cursor_x, cursor_y,
                                         max_y):
-                    history.state = state
-                    history.push()
+                    history.push(state)
                 selection_mode = False
                 selection_anchor_x = None
                 selection_anchor_y = None
@@ -1350,8 +1350,7 @@ def main_loop(stdscr, initial_smiles=None):
             result = load_smiles(stdscr, max_x, max_y)
             if result is not None:
                 state = result
-                history.state = state
-                history.push()
+                history.push(state)
 
             # Always redraw to clear the prompt
             need_redraw = True
@@ -1367,8 +1366,7 @@ def main_loop(stdscr, initial_smiles=None):
                                            cursor_y, max_y)
             if result is not None:
                 state.mol = result
-                history.state = state
-                history.push()
+                history.push(state)
 
             # Always redraw to clear the prompt
             need_redraw = True
@@ -1380,8 +1378,7 @@ def main_loop(stdscr, initial_smiles=None):
                                            cursor_y, max_y, symbol)
             if result is not None:
                 state.mol = result
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
@@ -1390,8 +1387,7 @@ def main_loop(stdscr, initial_smiles=None):
                                             cursor_y, max_x, max_y)
             if result is not None:
                 state = result
-                history.state = state
-                history.push()
+                history.push(state)
 
             # Always redraw to clear the prompt
             need_redraw = True
@@ -1399,8 +1395,7 @@ def main_loop(stdscr, initial_smiles=None):
         # Delete atom or bond at cursor position
         elif key == 'x':
             if delete_at_cursor(state, cursor_x, cursor_y, max_y):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Enter area delete (selection) mode
@@ -1413,22 +1408,19 @@ def main_loop(stdscr, initial_smiles=None):
         # Increase formal charge
         elif key == '+':
             if adjust_formal_charge(state, cursor_x, cursor_y, max_y, 1):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Decrease formal charge
         elif key == '-':
             if adjust_formal_charge(state, cursor_x, cursor_y, max_y, -1):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == '\x0c':  # Ctrl-L
             if cleanup_coordinates(state, max_x, max_y):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Zoom out
@@ -1446,31 +1438,27 @@ def main_loop(stdscr, initial_smiles=None):
             bond_order = int(key)
             if create_or_adjust_bond(state, cursor_x, cursor_y, max_y,
                                      bond_order):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Add/modify wedge bond (single bond with up stereochemistry)
         elif key == 'w':
             if create_or_adjust_bond(state, cursor_x, cursor_y, max_y, 1,
                                      Chem.BondDir.BEGINWEDGE):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Add/modify dash bond (single bond with down stereochemistry)
         elif key == 'd':
             if create_or_adjust_bond(state, cursor_x, cursor_y, max_y, 1,
                                      Chem.BondDir.BEGINDASH):
-                history.state = state
-                history.push()
+                history.push(state)
                 need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == '@':
             clear_canvas(state, max_y)
-            history.state = state
-            history.push()
+            history.push(state)
             need_redraw = True
 
         # Undo
