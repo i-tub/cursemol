@@ -1100,6 +1100,28 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, max_x, max_y):
         pass
 
 
+def draw_instructions(stdscr, max_x, max_y, move_mode=False):
+    """Draw instructions at the bottom of the screen."""
+    if move_mode:
+        # Show move mode instructions
+        move_instructions = [
+            "",
+            "hjkl: move molecule | Esc: leave move mode | q: quit"
+        ]
+        for i, line in enumerate(move_instructions):
+            try:
+                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
+            except curses.error:
+                pass
+    else:
+        # Show normal instructions
+        for i, line in enumerate(INSTRUCTIONS):
+            try:
+                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
+            except curses.error:
+                pass
+
+
 def redraw_screen(stdscr,
                   state,
                   show_smiles,
@@ -1139,24 +1161,7 @@ def redraw_screen(stdscr,
                             cursor_x, cursor_y, max_x, max_y)
 
     # Draw instructions at the bottom
-    if move_mode:
-        # Show move mode instructions
-        move_instructions = [
-            "",
-            "hjkl: move molecule | Esc: leave move mode | q: quit"
-        ]
-        for i, line in enumerate(move_instructions):
-            try:
-                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
-            except curses.error:
-                pass
-    else:
-        # Show normal instructions
-        for i, line in enumerate(INSTRUCTIONS):
-            try:
-                stdscr.addstr(max_y - len(INSTRUCTIONS) + i, 0, line[:max_x - 1])
-            except curses.error:
-                pass
+    draw_instructions(stdscr, max_x, max_y, move_mode)
 
 
 def main_loop(stdscr, initial_smiles=None):
