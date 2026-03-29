@@ -72,7 +72,7 @@ ELEMENT_COLORS = {
     'I': 4,  # Green
 }
 
-# Instructions (try to keep lines under 80 characters and balanced)
+# Instructions (try to keep lines under 80 characters and more or less balanced)
 INSTRUCTIONS = [
     "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
     "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
@@ -121,18 +121,6 @@ class UndoHistory:
         self.state = state
         self._history = [state.copy()]
         self._index = 0
-
-    def __enter__(self):
-        """Context manager entry: truncate future history."""
-        self._history = self._history[:self._index + 1]
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit: save state if no exception occurred."""
-        if exc_type is None:
-            self._history.append(self.state.copy())
-            self._index = len(self._history) - 1
-        return False  # Don't suppress exceptions
 
     def undo(self):
         """Move back in history. Returns True if successful."""
