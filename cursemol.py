@@ -678,9 +678,6 @@ def create_or_adjust_bond(state,
     bond_dir: Optional bond direction (e.g., Chem.BondDir.BEGINWEDGE)
     Returns True if bond was created/modified, False otherwise.
     """
-    if state.mol is None or state.box is None or state.scale is None:
-        return False
-
     # Find the two atoms that should be bonded (using screen coordinates)
     atom_pair = find_bond_atoms(state, cursor_x, cursor_y, max_y)
 
@@ -697,9 +694,6 @@ def adjust_formal_charge(state, cursor_x, cursor_y, max_y, delta):
     Adjust formal charge of atom at cursor position by delta.
     Returns True if charge was adjusted, False if no change or no atom found.
     """
-    if state.mol is None or state.box is None or state.scale is None:
-        return False
-
     if delta == 0:
         return False  # No change requested
 
@@ -718,9 +712,6 @@ def delete_atoms_in_rect(state, x1, y1, x2, y2, max_y):
     Delete all atoms whose screen positions fall within the rectangle.
     Returns True if any atoms were deleted, False otherwise.
     """
-    if state.mol is None or state.box is None or state.scale is None:
-        return False
-
     conf = state.mol.GetConformer()
     rows = max_y - 2
 
@@ -753,9 +744,6 @@ def delete_at_cursor(state, cursor_x, cursor_y, max_y):
     Delete atom or bond at cursor position.
     Returns True if something was deleted, False otherwise.
     """
-    if state.mol is None or state.box is None or state.scale is None:
-        return False
-
     # First try to find an atom at cursor
     atom_idx = find_atom_at_cursor(state, cursor_x, cursor_y, max_y)
     if atom_idx is not None:
@@ -908,9 +896,6 @@ def cleanup_coordinates(state, max_x, max_y):
     Regenerate 2D coordinates for the molecule and recenter the view.
     Keeps the current zoom level. Returns True if successful.
     """
-    if state.mol is None or state.mol.GetNumAtoms() == 0:
-        return False
-
     try:
         AllChem.Compute2DCoords(state.mol)
         if state.scale is not None:
