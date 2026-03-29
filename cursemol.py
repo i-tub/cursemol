@@ -1106,13 +1106,13 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
 
         # Draw horizontal lines
         for x in range(min_x + 1, max_x_rect):
-            if x < max_x:
+            if x < screen_dims.max_x:
                 stdscr.addch(min_y, x, '-')
                 stdscr.addch(max_y_rect, x, '-')
 
         # Draw vertical lines
         for y in range(min_y + 1, max_y_rect):
-            if y < max_y:
+            if y < screen_dims.max_y:
                 stdscr.addch(y, min_x, '|')
                 stdscr.addch(y, max_x_rect, '|')
     except curses.error:
