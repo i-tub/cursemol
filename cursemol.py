@@ -17,6 +17,7 @@ Controls:
   +, -       - Increase/decrease formal charge on atom
   <, >       - Zoom out/in
   1, 2, 3    - Add bond or change bond (order 1/2/3) between nearest atoms
+  w, d       - Add/change to wedge or dash (single bond with stereochemistry)
   @          - Clear canvas (reset to blank slate)
   u          - Undo
   r          - Redo
@@ -71,7 +72,7 @@ ELEMENT_COLORS = {
 # balanced)
 INSTRUCTIONS = [
     "hjkl: move | HJKL: translate | s/S: SMILES | i/a/c/n/o: insert | x/X: del",
-    "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 1-3: bond | @: clear | ?: help"
+    "+/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | @: clear | ?: help"
 ]
 
 
@@ -324,10 +325,11 @@ def find_bond_atoms(state, cursor_x, cursor_y, max_y):
     return best_pair
 
 
-def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
+def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
     """
     Modify or create a bond between two atoms.
     bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
+    bond_dir: Optional bond direction (e.g., Chem.BondDir.BEGINWEDGE)
 
     Returns True if successful, False if no change was made or modification
     would create an invalid molecule.
@@ -336,6 +338,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
 
     # Remember the old state in case we need to revert
     old_bond_type = bond.GetBondType() if bond is not None else None
+    old_bond_dir = bond.GetBondDir() if bond is not None else None
 
     # Map bond order to BondType
     bond_type_map = {
@@ -356,14 +359,23 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
             bond_type = bond_type_map[bond_order]
 
             if bond is not None:
-                # Check if bond already has this type
-                if bond.GetBondType() == bond_type:
+                # Check if bond already has this type and direction
+                no_change = (bond.GetBondType() == bond_type and
+                            (bond.GetBondDir() == bond_dir))
+                if no_change:
                     return False  # No change needed
                 # Modify existing bond
                 bond.SetBondType(bond_type)
+                if bond_dir is not None:
+                    bond.SetBondDir(bond_dir)
+                else:
+                    bond.SetBondDir(Chem.BondDir.NONE)
             else:
                 # Add new bond
                 mol.AddBond(atom1_idx, atom2_idx, bond_type)
+                if bond_dir is not None:
+                    bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
+                    bond.SetBondDir(bond_dir)
 
         # Test if the molecule can be kekulized
         mol_copy = Chem.RWMol(mol)
@@ -377,11 +389,16 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order):
             # We deleted the bond, add it back
             if old_bond_type is not None:
                 mol.AddBond(atom1_idx, atom2_idx, old_bond_type)
+                if old_bond_dir is not None:
+                    bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
+                    bond.SetBondDir(old_bond_dir)
         else:
             bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
             if old_bond_type is not None:
                 # We modified an existing bond, restore it
                 bond.SetBondType(old_bond_type)
+                if old_bond_dir is not None:
+                    bond.SetBondDir(old_bond_dir)
             else:
                 # We added a new bond, remove it
                 mol.RemoveBond(atom1_idx, atom2_idx)
@@ -657,10 +674,12 @@ def insert_or_modify_atom(stdscr,
     return None
 
 
-def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order):
+def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order,
+                          bond_dir=None):
     """
     Create or adjust bond between two nearest atoms at cursor position.
     bond_order: 1 (single), 2 (double), or 3 (triple)
+    bond_dir: Optional bond direction (e.g., Chem.BondDir.BEGINWEDGE)
     Returns True if bond was created/modified, False otherwise.
     """
     if state.mol is None or state.box is None or state.scale is None:
@@ -671,7 +690,7 @@ def create_or_adjust_bond(state, cursor_x, cursor_y, max_y, bond_order):
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
-        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order)
+        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order, bond_dir)
 
     return False
 
@@ -1368,6 +1387,22 @@ def main_loop(stdscr, initial_smiles=None):
             bond_order = int(key)
             if create_or_adjust_bond(state, cursor_x, cursor_y, max_y,
                                      bond_order):
+                history.state = state
+                history.push()
+                need_redraw = True
+
+        # Add/modify wedge bond (single bond with up stereochemistry)
+        elif key == 'w':
+            if create_or_adjust_bond(state, cursor_x, cursor_y, max_y, 1,
+                                     Chem.BondDir.BEGINWEDGE):
+                history.state = state
+                history.push()
+                need_redraw = True
+
+        # Add/modify dash bond (single bond with down stereochemistry)
+        elif key == 'd':
+            if create_or_adjust_bond(state, cursor_x, cursor_y, max_y, 1,
+                                     Chem.BondDir.BEGINDASH):
                 history.state = state
                 history.push()
                 need_redraw = True
