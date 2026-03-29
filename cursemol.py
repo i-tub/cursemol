@@ -1439,15 +1439,10 @@ def main_loop(stdscr, initial_smiles=None):
             selection_anchor_y = cursor_y
             need_redraw = True
 
-        # Increase formal charge
-        elif key == '+':
-            if adjust_formal_charge(state, cursor_x, cursor_y, screen_dims, 1):
-                history.push(state)
-                need_redraw = True
-
-        # Decrease formal charge
-        elif key == '-':
-            if adjust_formal_charge(state, cursor_x, cursor_y, screen_dims, -1):
+        # Adjust formal charge
+        elif key in '+-':
+            dq = 1 if key == '+' else -1
+            if adjust_formal_charge(state, cursor_x, cursor_y, screen_dims, dq):
                 history.push(state)
                 need_redraw = True
 
