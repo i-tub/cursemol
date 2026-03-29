@@ -1215,7 +1215,26 @@ def main_loop(stdscr, initial_smiles=None):
         stdscr.refresh()
 
         # Get user input
-        key = chr(stdscr.getch())
+        key_code = stdscr.getch()
+
+        # Handle terminal resize
+        if key_code == curses.KEY_RESIZE:
+            max_y, max_x = stdscr.getmaxyx()
+            # Recalculate molecule position for new screen size
+            state.box, state.y_offset = recalculate_box_and_offset(
+                state.mol, state.scale, max_x, max_y)
+            # Clamp cursor to new bounds
+            cursor_x = min(cursor_x, max_x - 1)
+            cursor_y = min(cursor_y, max_y - 1)
+            need_redraw = True
+            continue
+
+        # Convert to character (will skip non-char keys)
+        try:
+            key = chr(key_code)
+        except (ValueError, OverflowError):
+            # Ignore other special keys we don't handle
+            continue
 
         # Handle movement (vi-style) - works in both normal and selection mode
         if key in 'hjkl':
