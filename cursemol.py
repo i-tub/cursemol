@@ -325,6 +325,22 @@ def find_bond_atoms(state, cursor_x, cursor_y, max_y):
     return best_pair
 
 
+def reverse_bond(bond):
+    """
+    Reverse bond by deleting and re-adding with swapped atoms
+    we don't know the direction.
+    """
+    mol = bond.GetOwningMol()
+    a1 = bond.GetBeginAtomIdx()
+    a2 = bond.GetEndAtomIdx()
+    bond_dir = bond.GetBondDir()
+    bond_type = bond.GetBondType()
+    mol.RemoveBond(a1, a2)
+    bond_idx = mol.AddBond(a2, a1, bond_type) - 1
+    bond = mol.GetBondWithIdx(bond_idx)
+    bond.SetBondDir(bond_dir)
+
+
 def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
     """
     Modify or create a bond between two atoms.
@@ -334,16 +350,9 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
     If a bond already has the specified direction, it will be reversed
     (atoms swapped).
 
-    Returns True if successful, False if no change was made or modification
-    would create an invalid molecule.
+    Returns True if successful, False if no change was made.
     """
     bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
-
-    # Remember the old state in case we need to revert
-    old_bond_type = bond.GetBondType() if bond is not None else None
-    old_bond_dir = bond.GetBondDir() if bond is not None else None
-    old_atom1_idx = atom1_idx
-    old_atom2_idx = atom2_idx
 
     # Map bond order to BondType
     bond_type_map = {
@@ -352,78 +361,40 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
         3: Chem.BondType.TRIPLE
     }
 
-    try:
-        if bond_order == 0:
-            # Delete bond if it exists
-            if bond is not None:
-                mol.RemoveBond(atom1_idx, atom2_idx)
-            else:
-                # Bond doesn't exist, nothing to delete
-                return False
+    if bond_order == 0:
+        # Delete bond if it exists
+        if bond is not None:
+            mol.RemoveBond(atom1_idx, atom2_idx)
         else:
-            bond_type = bond_type_map[bond_order]
+            # Bond doesn't exist, nothing to delete
+            return False
+    else:
+        bond_type = bond_type_map[bond_order]
 
-            if bond is not None:
-                current_type = bond.GetBondType()
-                current_dir = bond.GetBondDir()
+        if bond is not None:
+            current_type = bond.GetBondType()
+            current_dir = bond.GetBondDir()
 
-                # Check if bond already has this exact type and direction
-                # If so, reverse the bond (swap atoms)
-                if (current_type == bond_type and bond_dir is not None and
-                        current_dir == bond_dir):
-
-                    # Reverse bond by deleting and re-adding with swapped atoms
-                    # We can't use atom1_idx and atom2_idx directly because
-                    # we don't know the direction.
-                    begin_atom_idx = bond.GetBeginAtomIdx()
-                    end_atom_idx = bond.GetEndAtomIdx()
-                    mol.RemoveBond(begin_atom_idx, end_atom_idx)
-                    bond_idx = mol.AddBond(end_atom_idx, begin_atom_idx,
-                                           Chem.BondType.SINGLE) - 1
-                    bond = mol.GetBondWithIdx(bond_idx)
+            # Check if bond already has this exact type and direction
+            # If so, reverse the bond (swap atoms)
+            if (current_type == bond_type and bond_dir is not None and
+                    current_dir == bond_dir):
+                reverse_bond(bond)
+            else:
+                # Modify existing bond
+                bond.SetBondType(bond_type)
+                if bond_dir is not None:
                     bond.SetBondDir(bond_dir)
                 else:
-                    # Modify existing bond
-                    bond.SetBondType(bond_type)
-                    if bond_dir is not None:
-                        bond.SetBondDir(bond_dir)
-                    else:
-                        bond.SetBondDir(Chem.BondDir.NONE)
-            else:
-                # Add new bond
-                mol.AddBond(atom1_idx, atom2_idx, bond_type)
-                if bond_dir is not None:
-                    bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
-                    bond.SetBondDir(bond_dir)
-
-        # Test if the molecule can be kekulized
-        mol_copy = Chem.RWMol(mol)
-        Chem.Kekulize(mol_copy, True)
-        return True
-
-    except Exception:
-        logging.exception("Error in modify_bond, reverting change")
-        # Revert the change if kekulization fails
-        if bond_order == 0:
-            # We deleted the bond, add it back with original atoms
-            if old_bond_type is not None:
-                mol.AddBond(old_atom1_idx, old_atom2_idx, old_bond_type)
-                if old_bond_dir is not None:
-                    bond = mol.GetBondBetweenAtoms(old_atom1_idx, old_atom2_idx)
-                    bond.SetBondDir(old_bond_dir)
+                    bond.SetBondDir(Chem.BondDir.NONE)
         else:
-            # First, remove any bond that was created/modified
-            bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
-            if bond is not None:
-                mol.RemoveBond(atom1_idx, atom2_idx)
+            # Add new bond
+            mol.AddBond(atom1_idx, atom2_idx, bond_type)
+            if bond_dir is not None:
+                bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
+                bond.SetBondDir(bond_dir)
 
-            # Then restore the original bond if it existed
-            if old_bond_type is not None:
-                mol.AddBond(old_atom1_idx, old_atom2_idx, old_bond_type)
-                bond = mol.GetBondBetweenAtoms(old_atom1_idx, old_atom2_idx)
-                if old_bond_dir is not None:
-                    bond.SetBondDir(old_bond_dir)
-        return False
+    return True
 
 
 def recalculate_box_and_offset(mol, scale, max_x, max_y):
