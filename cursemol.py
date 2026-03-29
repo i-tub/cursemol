@@ -432,10 +432,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
             else:
                 # Modify existing bond
                 bond.SetBondType(bond_type)
-                if bond_dir is not None:
-                    bond.SetBondDir(bond_dir)
-                else:
-                    bond.SetBondDir(Chem.BondDir.NONE)
+                bond.SetBondDir(Chem.BondDir.NONE if bond_dir is None else bond_dir)
         else:
             # Add new bond
             mol.AddBond(atom1_idx, atom2_idx, bond_type)
@@ -631,6 +628,10 @@ def draw_mol(stdscr, state, screen_dims):
 
 
 def get_smiles(mol):
+    """
+    Generate a SMILES deriving the stereochemical configuration from atomic
+    coordinates and bond directions.
+    """
     mol_for_smiles = Chem.Mol(mol)
     try:
         Chem.SanitizeMol(mol_for_smiles)
