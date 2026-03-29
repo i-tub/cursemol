@@ -46,6 +46,7 @@ DEFAULT_SCALE = 8.0  # columns per angstrom
 MAX_SCALE = 16.0  # columns per angstrom
 ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
+ZOOM_STEP = 1.2
 
 BOND_CHARS = {
     Chem.BondType.SINGLE: '·',
@@ -1452,14 +1453,10 @@ def main_loop(stdscr, initial_smiles=None):
                 history.push(state)
                 need_redraw = True
 
-        # Zoom out
-        elif key == '<':
-            zoom_view(state, screen_dims, 1.0 / 1.2)
-            need_redraw = True
-
-        # Zoom in
-        elif key == '>':
-            zoom_view(state, screen_dims, 1.2)
+        # Zoom
+        elif key in '<>':
+            zoom = ZOOM_STEP if key == '>' else 1.0 / ZOOM_STEP
+            zoom_view(state, screen_dims, zoom)
             need_redraw = True
 
         # Add/modify/delete bond
