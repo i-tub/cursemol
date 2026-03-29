@@ -250,7 +250,8 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from int_coords_for_atom
     mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
-    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset, screen_dims.rows)
+    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset,
+                              screen_dims.rows)
 
     return mol_x, mol_y
 
@@ -262,10 +263,8 @@ def iter_atom_screen_positions(state, screen_dims):
 
     conf = state.mol.GetConformer()
     for atom in state.mol.GetAtoms():
-        x, y = int_coords_for_atom(
-            atom, state.box, state.scale, conf,
-            state.y_offset, screen_dims.rows
-        )
+        x, y = int_coords_for_atom(atom, state.box, state.scale, conf,
+                                   state.y_offset, screen_dims.rows)
         yield atom, x, y
 
 
@@ -274,7 +273,8 @@ def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
     Find an atom at or near the cursor position (within tolerance cells).
     Returns atom index or None if no atom found.
     """
-    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
+    for atom, screen_x, screen_y in iter_atom_screen_positions(
+            state, screen_dims):
         if (abs(screen_x - cursor_x) <= tolerance and
                 abs(screen_y - cursor_y) <= tolerance):
             return atom.GetIdx()
@@ -291,9 +291,10 @@ def find_nearest_atom(state, cursor_x, cursor_y, screen_dims):
     nearest_atom = None
     nearest_pos = None
 
-    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
+    for atom, screen_x, screen_y in iter_atom_screen_positions(
+            state, screen_dims):
         # Calculate squared distance (avoid sqrt for performance)
-        dist_sq = (screen_x - cursor_x) ** 2 + (screen_y - cursor_y) ** 2
+        dist_sq = (screen_x - cursor_x)**2 + (screen_y - cursor_y)**2
 
         if dist_sq < min_dist_sq:
             min_dist_sq = dist_sq
@@ -317,7 +318,8 @@ def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
 
     # Calculate screen positions and distances for all atoms
     distances = []
-    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
+    for atom, screen_x, screen_y in iter_atom_screen_positions(
+            state, screen_dims):
         dx = screen_x - cursor_x
         dy = screen_y - cursor_y
         dist = math.sqrt(dx * dx + dy * dy)
@@ -421,7 +423,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
             current_dir = bond.GetBondDir()
 
             if (current_type == bond_type and bond_dir is None and
-                current_dir == Chem.BondDir.NONE):
+                    current_dir == Chem.BondDir.NONE):
                 return False
 
             # Check if bond already has this exact type and direction
@@ -747,7 +749,8 @@ def delete_atoms_in_rect(state, x1, y1, x2, y2, screen_dims):
 
     # Find atoms within the rectangle
     atoms_to_delete = []
-    for atom, screen_x, screen_y in iter_atom_screen_positions(state, screen_dims):
+    for atom, screen_x, screen_y in iter_atom_screen_positions(
+            state, screen_dims):
         if min_x <= screen_x <= max_x and min_y <= screen_y <= max_y_rect:
             atoms_to_delete.append(atom.GetIdx())
 
@@ -824,7 +827,8 @@ def create_molecule_from_smiles(smiles, screen_dims):
         mol = Chem.RWMol(m)
         AllChem.Compute2DCoords(mol)
         Chem.WedgeMolBonds(mol, mol.GetConformer())
-        box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x, screen_dims.max_y)
+        box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x,
+                                                       screen_dims.max_y)
         return State(mol=mol, box=box, scale=scale, y_offset=y_offset)
     return None
 
@@ -1115,7 +1119,10 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
         pass
 
 
-def draw_instructions(stdscr, screen_dims, move_mode=False, selection_mode=False):
+def draw_instructions(stdscr,
+                      screen_dims,
+                      move_mode=False,
+                      selection_mode=False):
     """Draw instructions at the bottom of the screen."""
     if selection_mode:
         # Show selection mode instructions
@@ -1125,7 +1132,8 @@ def draw_instructions(stdscr, screen_dims, move_mode=False, selection_mode=False
         ]
         for i, line in enumerate(selection_instructions):
             try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0, line[:screen_dims.max_x - 1])
+                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
+                              line[:screen_dims.max_x - 1])
             except curses.error:
                 pass
     elif move_mode:
@@ -1136,14 +1144,16 @@ def draw_instructions(stdscr, screen_dims, move_mode=False, selection_mode=False
         ]
         for i, line in enumerate(move_instructions):
             try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0, line[:screen_dims.max_x - 1])
+                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
+                              line[:screen_dims.max_x - 1])
             except curses.error:
                 pass
     else:
         # Show normal instructions
         for i, line in enumerate(INSTRUCTIONS):
             try:
-                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0, line[:screen_dims.max_x - 1])
+                stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
+                              line[:screen_dims.max_x - 1])
             except curses.error:
                 pass
 
@@ -1322,7 +1332,8 @@ def main_loop(stdscr, initial_smiles=None):
             if key == 'H':  # fast left
                 cursor_x = max(0, cursor_x - 10)
             elif key == 'J':  # fast down
-                cursor_y = min(screen_dims.rows - 1, cursor_y + int(10 * ASPECT_RATIO))
+                cursor_y = min(screen_dims.rows - 1,
+                               cursor_y + int(10 * ASPECT_RATIO))
             elif key == 'K':  # fast up
                 cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
             elif key == 'L':  # fast right
@@ -1397,8 +1408,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
-            result = insert_or_modify_atom(stdscr, state, cursor_x,
-                                           cursor_y, screen_dims)
+            result = insert_or_modify_atom(stdscr, state, cursor_x, cursor_y,
+                                           screen_dims)
             if result is not None:
                 state.mol = result
                 history.push(state)
@@ -1409,8 +1420,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
             symbol = key.upper()
-            result = insert_or_modify_atom(stdscr, state, cursor_x,
-                                           cursor_y, screen_dims, symbol)
+            result = insert_or_modify_atom(stdscr, state, cursor_x, cursor_y,
+                                           screen_dims, symbol)
             if result is not None:
                 state.mol = result
                 history.push(state)
@@ -1418,8 +1429,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
-            result = append_smiles_fragment(stdscr, state, cursor_x,
-                                            cursor_y, screen_dims)
+            result = append_smiles_fragment(stdscr, state, cursor_x, cursor_y,
+                                            screen_dims)
             if result is not None:
                 state = result
                 history.push(state)
