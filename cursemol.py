@@ -232,7 +232,7 @@ def draw_line(screen, char, char2, x1, y1, x2, y2):
     for x in range(x1 + 1, x2):
         y = int(round(y1 + slope * (x - x1)))
         if rev:
-            c = char if x > mid else char2
+            c = char if x >= mid else char2
         else:
             c = char if x < mid else char2
         if vertical:
