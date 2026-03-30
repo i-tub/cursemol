@@ -1564,19 +1564,32 @@ def parse_args():
 
 def setup_tty():
     """
-    If stdin is not a TTY (e.g., piped input), redirect to /dev/tty
-    so curses can read keyboard input.
+    If stdin/stdout are not TTYs (e.g., piped input/output), redirect to /dev/tty
+    so curses can read keyboard input and display to the terminal.
+    Returns the original stdout fd if it was redirected (for final SMILES output).
     """
-    if sys.stdin.isatty():
-        return
+    original_stdout_fd = None
 
-    sys.stdin.close()  # Close the old stdin to avoid resource warning
-    tty_fd = os.open('/dev/tty', os.O_RDONLY)
-    os.dup2(tty_fd, 0)  # Replace fd 0 (stdin) with /dev/tty
-    os.close(tty_fd)
-    sys.stdin = os.fdopen(0, 'r')
-    # Register cleanup to avoid resource warning on exit
-    atexit.register(lambda: sys.stdin.close())
+    # Handle stdin
+    if not sys.stdin.isatty():
+        sys.stdin.close()  # Close the old stdin to avoid resource warning
+        tty_fd = os.open('/dev/tty', os.O_RDONLY)
+        os.dup2(tty_fd, 0)  # Replace fd 0 (stdin) with /dev/tty
+        os.close(tty_fd)
+        sys.stdin = os.fdopen(0, 'r')
+        # Register cleanup to avoid resource warning on exit
+        atexit.register(lambda: sys.stdin.close())
+
+    # Handle stdout
+    if not sys.stdout.isatty():
+        original_stdout_fd = os.dup(1)  # Duplicate fd 1 before redirecting
+        tty_fd = os.open('/dev/tty', os.O_WRONLY)
+        os.dup2(tty_fd, 1)  # Replace fd 1 (stdout) with /dev/tty
+        os.close(tty_fd)
+        sys.stdout = sys.__stdout__ = os.fdopen(
+            1, 'w')  # Update both stdout and __stdout__
+
+    return original_stdout_fd
 
 
 def main():
@@ -1599,9 +1612,17 @@ def main():
     if initial_smiles == "-":
         initial_smiles = sys.stdin.readline().strip()
 
-    setup_tty()
+    original_stdout_fd = setup_tty()
 
-    print(curses.wrapper(main_loop, initial_smiles))
+    smiles = curses.wrapper(main_loop, initial_smiles)
+
+    # Print to original stdout if it was redirected, otherwise to current stdout
+    if original_stdout_fd is not None:
+        output = os.fdopen(original_stdout_fd, 'w')
+        print(smiles, file=output)
+        output.close()
+    else:
+        print(smiles)
 
 
 if __name__ == "__main__":
