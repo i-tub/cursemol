@@ -1,7 +1,7 @@
 [project]
 name = "CurseMol"
 version = "2026.04.01"
-description = "Molecular sketcher for the terminally insane"
+description = "Molecular sketcher for the terminally committed"
 requires-python = ">= 3.11"
 dependencies = [
     "rdkit",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CurseMol - Molecular sketcher for the terminally insane
+CurseMol - Molecular sketcher for the terminally committed
 
 Controls:
   h, j, k, l       - Move cursor left, down, up, right
@@ -1481,7 +1481,7 @@ def main_loop(stdscr, initial_smiles=None):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='CurseMol - molecular sketcher for the terminally insane')
+        description='CurseMol - molecular sketcher for the terminally committed')
     parser.add_argument(
         'smiles',
         nargs='?',

@@ -1,4 +1,4 @@
-## CurseMol - Molecular sketcher for the terminally insane
+## CurseMol - Molecular sketcher for the terminally committed
 
 Have you ever been working on a terminal with programs that use SMILES for
 input or output, and switching to your GUI sketcher is too annoying? (Not
@@ -42,5 +42,5 @@ Controls:
 
 ### Requirements
 
-- Python (tested with 3.13)
+- Python (tested with 3.11)
 - RDKit (tested with 2025.09.6)
