@@ -204,7 +204,8 @@ def screen_coords_for_atom(atom, state, conf, rows):
     """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
-    y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1], state.y_offset, rows)
+    y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1],
+                          state.y_offset, rows)
     return x, y
 
 
@@ -454,7 +455,8 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
             else:
                 # Modify existing bond
                 bond.SetBondType(bond_type)
-                bond.SetBondDir(Chem.BondDir.NONE if bond_dir is None else bond_dir)
+                bond.SetBondDir(Chem.BondDir.NONE if bond_dir is
+                                None else bond_dir)
         else:
             # Add new bond
             mol.AddBond(atom1_idx, atom2_idx, bond_type)
@@ -581,8 +583,10 @@ def fill_screen_buffer(state, screen_dims):
     # Draw bonds
     try:
         for bond in state.mol.GetBonds():
-            x1, y1 = screen_coords_for_atom(bond.GetBeginAtom(), state, conf, rows)
-            x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state, conf, rows)
+            x1, y1 = screen_coords_for_atom(bond.GetBeginAtom(), state, conf,
+                                            rows)
+            x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state, conf,
+                                            rows)
             # Only draw if bond type is in our dictionary
             if bond_char := BOND_CHARS.get(bond.GetBondType()):
                 bond_dir_char = BOND_DIR_CHARS.get(bond.GetBondDir(), bond_char)
@@ -1016,7 +1020,8 @@ def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
     # Determine which atom is closer to cursor
     conf = state.mol.GetConformer()
     mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, state.box,
-                                        state.scale, screen_dims, state.y_offset)
+                                        state.scale, screen_dims,
+                                        state.y_offset)
 
     pos1 = conf.GetAtomPosition(a1_idx)
     pos2 = conf.GetAtomPosition(a2_idx)
@@ -1158,7 +1163,9 @@ def draw_error_message(stdscr, screen_dims, error_message):
         error_message: Error message string (will be split into lines)
     """
     # Split message into lines
-    error_lines = [*error_message.strip().split('\n'), '[Press any key to clear]']
+    error_lines = [
+        *error_message.strip().split('\n'), '[Press any key to clear]'
+    ]
 
     for i, line in enumerate(error_lines):
         # Calculate row position (last line of error is on last screen row)
@@ -1259,7 +1266,8 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Load initial molecule if provided
     if initial_smiles:
-        state, error_message = create_molecule_from_smiles(initial_smiles, screen_dims)
+        state, error_message = create_molecule_from_smiles(
+            initial_smiles, screen_dims)
         if state is None:
             # Failed to parse SMILES, create empty state
             state = create_empty_state(screen_dims)
@@ -1544,7 +1552,8 @@ def main_loop(stdscr, initial_smiles=None):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='CurseMol - molecular sketcher for the terminally committed')
+        description='CurseMol - molecular sketcher for the terminally committed'
+    )
     parser.add_argument(
         'smiles',
         nargs='?',
