@@ -826,12 +826,18 @@ def create_molecule_from_smiles(smiles, screen_dims):
 def load_smiles(stdscr, screen_dims):
     """
     Prompt user for SMILES string and create molecule from it.
-    Returns State object if successful, None otherwise.
+    Returns tuple: (State object or None, error_message string)
+    Error message is empty string if no error occurred.
     """
     smiles = enter_smiles(stdscr, screen_dims.max_y)
     if smiles:
-        return create_molecule_from_smiles(smiles, screen_dims)
-    return None
+        state = create_molecule_from_smiles(smiles, screen_dims)
+        # Return (state, error_message) - error if state is None
+        if state is None:
+            return (None, "Invalid SMILES")
+        return (state, "")
+    # User cancelled - no error
+    return (None, "")
 
 
 def clear_canvas(state, screen_dims):
@@ -1117,6 +1123,27 @@ def draw_instructions(stdscr, screen_dims, mode):
             pass
 
 
+def draw_error_message(stdscr, screen_dims, error_message):
+    """
+    Draw error message at the bottom of the screen.
+
+    Args:
+        stdscr: curses screen object
+        screen_dims: Screen dimensions
+        error_message: Error message string (will be split into lines)
+    """
+    # Split message into lines
+    error_lines = [*error_message.split('\n'), '[Press any key to clear]']
+
+    for i, line in enumerate(error_lines):
+        # Calculate row position (last line of error is on last screen row)
+        row = screen_dims.max_y - len(error_lines) + i
+        try:
+            stdscr.addstr(row, 0, line[:screen_dims.max_x - 1])
+        except curses.error:
+            pass
+
+
 def redraw_screen(stdscr,
                   state,
                   show_smiles,
@@ -1125,9 +1152,13 @@ def redraw_screen(stdscr,
                   selection_anchor_x=None,
                   selection_anchor_y=None,
                   cursor_x=None,
-                  cursor_y=None):
+                  cursor_y=None,
+                  error_message=""):
     """
     Redraw the entire screen with molecule, SMILES, and optional selection.
+
+    Args:
+        error_message: Optional error message string to display at bottom
     """
     stdscr.clear()
 
@@ -1152,8 +1183,11 @@ def redraw_screen(stdscr,
         draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
                             cursor_x, cursor_y, screen_dims)
 
-    # Draw instructions at the bottom
-    draw_instructions(stdscr, screen_dims, mode)
+    # Draw error message or instructions at the bottom
+    if error_message:
+        draw_error_message(stdscr, screen_dims, error_message)
+    else:
+        draw_instructions(stdscr, screen_dims, mode)
 
 
 def init_curses(stdscr):
@@ -1194,12 +1228,16 @@ def main_loop(stdscr, initial_smiles=None):
     smiles = initial_smiles or ""
     show_smiles = False
 
+    # Error message to display (empty string means no error)
+    error_message = ""
+
     # Load initial molecule if provided
     if initial_smiles:
         state = create_molecule_from_smiles(initial_smiles, screen_dims)
         if state is None:
             # Failed to parse SMILES, create empty state
             state = create_empty_state(screen_dims)
+            error_message = "Invalid SMILES"
     else:
         # Create empty state
         state = create_empty_state(screen_dims)
@@ -1220,7 +1258,7 @@ def main_loop(stdscr, initial_smiles=None):
         if need_redraw:
             redraw_screen(stdscr, state, show_smiles, screen_dims, mode,
                           selection_anchor_x, selection_anchor_y, cursor_x,
-                          cursor_y)
+                          cursor_y, error_message)
             need_redraw = False
 
         # Move cursor to current position
@@ -1233,6 +1271,12 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Get user input
         key_code = stdscr.getch()
+
+        # Clear error message on any key press
+        if error_message:
+            error_message = ""
+            need_redraw = True
+            continue
 
         # Handle terminal resize
         if key_code == curses.KEY_RESIZE:
@@ -1346,7 +1390,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Enter SMILES string
         elif key == 's':
-            result = load_smiles(stdscr, screen_dims)
+            result, error_message = load_smiles(stdscr, screen_dims)
             if result is not None:
                 state = result
                 history.push(state)
