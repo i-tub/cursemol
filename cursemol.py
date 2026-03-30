@@ -32,15 +32,19 @@ import atexit
 import curses
 from dataclasses import dataclass
 from enum import Enum
+import io
 import logging
 import math
 import os
+import re
 import sys
 
 from rdkit import Chem
 from rdkit import Geometry
 from rdkit import RDLogger
 from rdkit.Chem import AllChem
+
+rdkit_logger = logging.getLogger('rdkit')
 
 MIN_SCALE = 2.0  # columns per angstrom
 DEFAULT_SCALE = 8.0  # columns per angstrom
@@ -144,6 +148,24 @@ class UndoHistory:
         self._history = self._history[:self._index + 1]
         self._history.append(self.state.copy())
         self._index = len(self._history) - 1
+
+
+class capture_rdkit_log:
+    """
+    Context manager to capture RDKit log messages.
+    """
+
+    def __enter__(self):
+        self._stream = io.StringIO()
+        self._old_stream = rdkit_logger.handlers[0].setStream(self._stream)
+        return self
+
+    def __exit__(self, *a):
+        rdkit_logger.handlers[0].setStream(self._stream)
+
+    def getMessage(self):
+        """Return log messages after stripping them of timestamps"""
+        return re.sub(r'\[..:..:..] ', '', self._stream.getvalue())
 
 
 def get_box(conf):
@@ -809,18 +831,21 @@ def create_empty_state(screen_dims):
 def create_molecule_from_smiles(smiles, screen_dims):
     """
     Create molecule from SMILES string with 2D coordinates.
-    Returns State object if successful, None otherwise.
+    Returns (state, error_message); in case of error, state will be None.
     """
-    m = Chem.MolFromSmiles(smiles)
-    if m is not None:
-        Chem.Kekulize(m, True)
-        mol = Chem.RWMol(m)
-        AllChem.Compute2DCoords(mol)
-        Chem.WedgeMolBonds(mol, mol.GetConformer())
-        box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x,
-                                                       screen_dims.max_y)
-        return State(mol=mol, box=box, scale=scale, y_offset=y_offset)
-    return None
+    with capture_rdkit_log() as log:
+        m = Chem.MolFromSmiles(smiles)
+
+    if m is None:
+        return None, 'Invalid SMILES\n' + log.getMessage()
+
+    Chem.Kekulize(m, True)
+    mol = Chem.RWMol(m)
+    AllChem.Compute2DCoords(mol)
+    Chem.WedgeMolBonds(mol, mol.GetConformer())
+    box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x,
+                                                   screen_dims.max_y)
+    return State(mol=mol, box=box, scale=scale, y_offset=y_offset), ""
 
 
 def load_smiles(stdscr, screen_dims):
@@ -831,10 +856,10 @@ def load_smiles(stdscr, screen_dims):
     """
     smiles = enter_smiles(stdscr, screen_dims.max_y)
     if smiles:
-        state = create_molecule_from_smiles(smiles, screen_dims)
+        state, msg = create_molecule_from_smiles(smiles, screen_dims)
         # Return (state, error_message) - error if state is None
         if state is None:
-            return (None, "Invalid SMILES")
+            return (None, msg)
         return (state, "")
     # User cancelled - no error
     return (None, "")
@@ -1133,13 +1158,14 @@ def draw_error_message(stdscr, screen_dims, error_message):
         error_message: Error message string (will be split into lines)
     """
     # Split message into lines
-    error_lines = [*error_message.split('\n'), '[Press any key to clear]']
+    error_lines = [*error_message.strip().split('\n'), '[Press any key to clear]']
 
     for i, line in enumerate(error_lines):
         # Calculate row position (last line of error is on last screen row)
         row = screen_dims.max_y - len(error_lines) + i
+        display_line = line[:screen_dims.max_x - 1].ljust(screen_dims.max_x - 1)
         try:
-            stdscr.addstr(row, 0, line[:screen_dims.max_x - 1])
+            stdscr.addstr(row, 0, display_line, curses.color_pair(1))
         except curses.error:
             pass
 
@@ -1233,11 +1259,10 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Load initial molecule if provided
     if initial_smiles:
-        state = create_molecule_from_smiles(initial_smiles, screen_dims)
+        state, error_message = create_molecule_from_smiles(initial_smiles, screen_dims)
         if state is None:
             # Failed to parse SMILES, create empty state
             state = create_empty_state(screen_dims)
-            error_message = "Invalid SMILES"
     else:
         # Create empty state
         state = create_empty_state(screen_dims)
@@ -1552,9 +1577,10 @@ def main():
         level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Silence RDKit warnings
-    logger = RDLogger.logger()
-    logger.setLevel(RDLogger.CRITICAL)
+    # Capture RDKit warnings
+    rdkit_logger.setLevel(logging.ERROR)
+    rdkit_logger.handlers[0].setStream(io.StringIO())
+    Chem.rdBase.LogToPythonLogger()
 
     args = parse_args()
 
