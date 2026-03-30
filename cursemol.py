@@ -969,7 +969,7 @@ def compute_coords_with_fixed_atoms(mol, num_fixed_atoms):
 
 
 def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
-                              cursor_x, cursor_y, max_y):
+                              cursor_x, cursor_y, screen_dims):
     """
     Connect a sidechain to a bond by forming a ring.
 
@@ -983,14 +983,14 @@ def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
         start_idx: Index of first atom in sidechain
         end_idx: Index of last atom in sidechain
         cursor_x, cursor_y: Cursor position (to determine which atom is closer)
-        max_y: Screen height
+        screen_dims: Screen dimensions
     """
     a1_idx, a2_idx = bond_atom_pair
 
     # Determine which atom is closer to cursor
     conf = state.mol.GetConformer()
     mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y, state.box,
-                                        state.scale, max_y, state.y_offset)
+                                        state.scale, screen_dims, state.y_offset)
 
     pos1 = conf.GetAtomPosition(a1_idx)
     pos2 = conf.GetAtomPosition(a2_idx)
@@ -1049,7 +1049,7 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         else:
             # Cursor on bond: insert sidechain between the two atoms
             connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
-                                      cursor_x, cursor_y, max_y)
+                                      cursor_x, cursor_y, screen_dims)
 
         # Compute 2D coordinates for new atoms, keeping original atoms fixed
         compute_coords_with_fixed_atoms(state.mol, start_idx)
@@ -1238,7 +1238,6 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Get user input
         key_code = stdscr.getch()
-        logging.critical(f"Key: {key_code}")
 
         # Handle terminal resize
         if key_code == curses.KEY_RESIZE:
