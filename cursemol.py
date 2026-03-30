@@ -15,6 +15,7 @@ Controls:
                      atoms to the first and last atoms from the SMILES)
   c, n, o          - Insert/modify carbon/nitrogen/oxygen atom
   x                - Delete atom or bond
+  D                - Delete fragment (all atoms connected to cursor atom)
   X                - Area delete (select rectangle, Enter to delete, Esc to cancel)
   +, -             - Increase/decrease formal charge on atom
   <, >             - Zoom out/in
@@ -79,7 +80,7 @@ ELEMENT_COLORS = {
 # Instructions (try to keep lines under 80 characters and more or less balanced)
 INSTRUCTIONS = [
     "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
-    "x/X: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
+    "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
 ]
 
 
@@ -806,6 +807,45 @@ def delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
     return False
 
 
+def delete_fragment_at_cursor(state, cursor_x, cursor_y, screen_dims):
+    """
+    Delete all atoms reachable from the atom at cursor position via BFS.
+    Returns True if any atoms were deleted, False otherwise.
+    """
+    # Find starting atom at cursor
+    start_atom_idx = find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims)
+    if start_atom_idx is None:
+        return False
+
+    # BFS to find all reachable atoms
+    visited = set()
+    queue = [start_atom_idx]
+    visited.add(start_atom_idx)
+
+    while queue:
+        atom_idx = queue.pop(0)
+        atom = state.mol.GetAtomWithIdx(atom_idx)
+
+        # Add all neighbors to queue
+        for neighbor in atom.GetNeighbors():
+            neighbor_idx = neighbor.GetIdx()
+            if neighbor_idx not in visited:
+                visited.add(neighbor_idx)
+                queue.append(neighbor_idx)
+
+    # Delete atoms in reverse order (highest index first) to avoid index shifting
+    if visited:
+        try:
+            for atom_idx in sorted(visited, reverse=True):
+                state.mol.RemoveAtom(atom_idx)
+            return True
+        except Exception:
+            logging.exception("Error deleting fragment (D command)")
+            return False
+
+    return False
+
+
 def create_empty_state(screen_dims):
     """
     Create an empty molecular state with default settings.
@@ -1472,6 +1512,12 @@ def main_loop(stdscr, initial_smiles=None):
         # Delete atom or bond at cursor position
         elif key == 'x':
             if delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
+                history.push(state)
+                need_redraw = True
+
+        # Delete fragment (all atoms connected to cursor atom)
+        elif key == 'D':
+            if delete_fragment_at_cursor(state, cursor_x, cursor_y, screen_dims):
                 history.push(state)
                 need_redraw = True
 

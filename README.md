@@ -28,6 +28,7 @@ Controls:
                      atoms to the first and last atoms from the SMILES)
   c, n, o          - Insert/modify carbon/nitrogen/oxygen atom
   x                - Delete atom or bond
+  D                - Delete fragment (all atoms connected to cursor atom)
   X                - Area delete (select rectangle, Enter to delete, Esc to cancel)
   +, -             - Increase/decrease formal charge on atom
   <, >             - Zoom out/in
