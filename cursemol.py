@@ -638,6 +638,7 @@ def get_smiles(mol):
         Chem.DetectBondStereochemistry(mol_for_smiles)
         Chem.AssignChiralTypesFromBondDirs(mol_for_smiles)
         Chem.AssignStereochemistry(mol_for_smiles, force=True)
+        mol_for_smiles = Chem.RemoveHs(mol)
     except:
         logging.exception("get_smiles error")
         mol_for_smiles = mol
@@ -817,8 +818,10 @@ def create_molecule_from_smiles(smiles, screen_dims):
     Create molecule from SMILES string with 2D coordinates.
     Returns State object if successful, None otherwise.
     """
-    m = Chem.MolFromSmiles(smiles)
+    m = Chem.MolFromSmiles(smiles, sanitize=False)
     if m is not None:
+        Chem.SanitizeMol(m)
+        Chem.Kekulize(m, True)
         mol = Chem.RWMol(m)
         AllChem.Compute2DCoords(mol)
         Chem.WedgeMolBonds(mol, mol.GetConformer())
