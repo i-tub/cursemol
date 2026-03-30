@@ -1582,7 +1582,7 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
 
         # Redo
-        elif key == 'r':
+        elif key in 'r\x12':  # Also support Ctrl-R for vim muscle memory
             if history.redo():
                 state = history.state
                 need_redraw = True
