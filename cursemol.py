@@ -1054,18 +1054,19 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         bond_atom_pair = find_bond_atoms(state, cursor_x, cursor_y, screen_dims)
 
     if atom_idx is None and bond_atom_pair is None:
-        return None  # Nothing to do
+        return None, ""  # Nothing to do
 
     # Prompt for SMILES
     sidechain_smiles = enter_smiles(stdscr, screen_dims.max_y)
     if sidechain_smiles is None:
-        return None  # Nothing to do
+        return None, ""  # Nothing to do
 
     try:
         # Create sidechain molecule
-        sidechain = Chem.MolFromSmiles(sidechain_smiles)
+        with capture_rdkit_log() as log:
+            sidechain = Chem.MolFromSmiles(sidechain_smiles)
         if sidechain is None:
-            return None  # Bad SMILES
+            return None, log.getMessage()  # Bad SMILES
 
         # Get the index where sidechain will start
         start_idx = state.mol.GetNumAtoms()
@@ -1092,11 +1093,11 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         return State(mol=state.mol,
                      box=box,
                      scale=state.scale,
-                     y_offset=y_offset)
+                     y_offset=y_offset), ""
     except Exception as e:
         logging.exception("Error appending atoms (a command)")
         # Error appending atoms
-        return None
+        return None, str(e)
 
 
 def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
@@ -1459,8 +1460,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
-            result = append_smiles_fragment(stdscr, state, cursor_x, cursor_y,
-                                            screen_dims)
+            result, error_message = append_smiles_fragment(
+                stdscr, state, cursor_x, cursor_y, screen_dims)
             if result is not None:
                 state = result
                 history.push(state)
