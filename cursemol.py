@@ -613,13 +613,6 @@ def draw_mol(stdscr, state, screen_dims):
     if state.mol.GetNumAtoms() == 0:
         return
 
-    try:
-        Chem.Kekulize(state.mol, True)
-    except Exception:
-        logging.exception("Error kekulizing molecule")
-        # If kekulization fails, skip drawing bonds (just show atoms)
-        pass
-
     # Fill screen buffer with molecular structure
     screen, screen_colors = fill_screen_buffer(state, screen_dims)
 
@@ -818,9 +811,8 @@ def create_molecule_from_smiles(smiles, screen_dims):
     Create molecule from SMILES string with 2D coordinates.
     Returns State object if successful, None otherwise.
     """
-    m = Chem.MolFromSmiles(smiles, sanitize=False)
+    m = Chem.MolFromSmiles(smiles)
     if m is not None:
-        Chem.SanitizeMol(m)
         Chem.Kekulize(m, True)
         mol = Chem.RWMol(m)
         AllChem.Compute2DCoords(mol)
