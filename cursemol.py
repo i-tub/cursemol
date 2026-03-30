@@ -657,7 +657,7 @@ def get_smiles(mol):
         Chem.DetectBondStereochemistry(mol_for_smiles)
         Chem.AssignChiralTypesFromBondDirs(mol_for_smiles)
         Chem.AssignStereochemistry(mol_for_smiles, force=True)
-        mol_for_smiles = Chem.RemoveHs(mol)
+        mol_for_smiles = Chem.RemoveHs(mol_for_smiles)
     except:
         logging.exception("get_smiles error")
         mol_for_smiles = mol
