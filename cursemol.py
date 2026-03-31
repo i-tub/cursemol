@@ -19,6 +19,7 @@ Controls:
   X                - Area delete (select rectangle, Enter to delete, Esc to cancel)
   +, -             - Increase/decrease formal charge on atom
   <, >             - Zoom out/in
+  b                - Add bond mode (add atom and move it, Enter to accept, Esc to cancel)
   1, 2, 3          - Add bond or change bond (order 1/2/3) between nearest atoms
   w, d             - Add/change to wedge or dash bond (press again to reverse)
   @                - Clear canvas (reset to blank slate)
@@ -80,7 +81,7 @@ ELEMENT_COLORS = {
 # Instructions (try to keep lines under 80 characters and more or less balanced)
 INSTRUCTIONS = [
     "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
-    "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | 123/wd: bond | ?: help"
+    "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | b/123/wd: bond | ?: help"
 ]
 
 
@@ -89,6 +90,7 @@ class Mode(Enum):
     NORMAL = "normal"
     MOVE = "move"
     SELECT = "select"
+    BOND = "bond"
 
 
 @dataclass
@@ -1182,6 +1184,12 @@ def draw_instructions(stdscr, screen_dims, mode):
             "[Move molecule mode]",
             "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
         ]
+    elif mode == Mode.BOND:
+        # Show bond mode instructions
+        instructions = [
+            "[Add bond mode]",
+            "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
+        ]
     else:
         # Show normal instructions
         instructions = INSTRUCTIONS
@@ -1327,6 +1335,10 @@ def main_loop(stdscr, initial_smiles=None):
     selection_anchor_x = None
     selection_anchor_y = None
 
+    # Bond mode state
+    bond_start_atom_idx = None
+    bond_new_atom_idx = None
+
     while True:
         # Only redraw everything when necessary
         if need_redraw:
@@ -1386,7 +1398,7 @@ def main_loop(stdscr, initial_smiles=None):
                     shift_view(state, -1, 0)
                 need_redraw = True
             else:
-                # Normal/select mode: move cursor
+                # Normal/select/bond mode: move cursor
                 if key == 'h':  # left
                     cursor_x = max(0, cursor_x - 1)
                 elif key == 'j':  # down
@@ -1395,7 +1407,16 @@ def main_loop(stdscr, initial_smiles=None):
                     cursor_y = max(0, cursor_y - 1)
                 elif key == 'l':  # right
                     cursor_x = min(screen_dims.max_x - 1, cursor_x + 1)
-                if mode == Mode.SELECT:
+
+                # Update new atom position in bond mode
+                if mode == Mode.BOND and bond_new_atom_idx is not None:
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                        state.box, state.scale,
+                                                        screen_dims, state.y_offset)
+                    conf = state.mol.GetConformer()
+                    conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
+
+                if mode in (Mode.SELECT, Mode.BOND):
                     need_redraw = True
 
         # Fast cursor movement
@@ -1409,7 +1430,16 @@ def main_loop(stdscr, initial_smiles=None):
                 cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
             elif key == 'L':  # fast right
                 cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
-            if mode == Mode.SELECT:
+
+            # Update new atom position in bond mode
+            if mode == Mode.BOND and bond_new_atom_idx is not None:
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                    state.box, state.scale,
+                                                    screen_dims, state.y_offset)
+                conf = state.mol.GetConformer()
+                conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
+
+            if mode in (Mode.SELECT, Mode.BOND):
                 need_redraw = True
 
         # Special handling for move mode
@@ -1449,6 +1479,49 @@ def main_loop(stdscr, initial_smiles=None):
                 # Ignore all other keys in selection mode
                 continue
 
+        # Special handling for bond mode
+        elif mode == Mode.BOND:
+            if key == '\n':  # Enter - accept bond
+                # Check if cursor is on another atom (excluding the new atom)
+                target_atom_idx = find_atom_at_cursor(state, cursor_x, cursor_y,
+                                                      screen_dims)
+                if target_atom_idx is not None and target_atom_idx != bond_new_atom_idx:
+                    # Delete new atom and form bond between start and target
+                    state.mol.RemoveAtom(bond_new_atom_idx)
+                    # Adjust indices if needed (if new atom was before target)
+                    if bond_new_atom_idx < target_atom_idx:
+                        target_atom_idx -= 1
+                    adjusted_start_idx = bond_start_atom_idx
+                    if bond_new_atom_idx < bond_start_atom_idx:
+                        adjusted_start_idx -= 1
+                    # Create bond (only if not self-loop)
+                    if adjusted_start_idx != target_atom_idx:
+                        modify_bond(state.mol, adjusted_start_idx, target_atom_idx, 1)
+                # else: leave new atom where it is
+
+                # Push undo and exit bond mode
+                history.push(state)
+                mode = Mode.NORMAL
+                bond_start_atom_idx = None
+                bond_new_atom_idx = None
+                need_redraw = True
+            elif key == '\x1b':  # Escape - cancel bond
+                # Delete new atom and exit bond mode (no undo entry)
+                if bond_new_atom_idx is not None:
+                    state.mol.RemoveAtom(bond_new_atom_idx)
+                mode = Mode.NORMAL
+                bond_start_atom_idx = None
+                bond_new_atom_idx = None
+                need_redraw = True
+            elif key == 'q':
+                # Allow quitting from bond mode (clean up first)
+                if bond_new_atom_idx is not None:
+                    state.mol.RemoveAtom(bond_new_atom_idx)
+                return get_smiles(state.mol)
+            else:
+                # Ignore all other keys in bond mode
+                continue
+
         # Snap to nearest atom
         elif key == ' ':
             result = find_nearest_atom(state, cursor_x, cursor_y, screen_dims)
@@ -1457,10 +1530,43 @@ def main_loop(stdscr, initial_smiles=None):
                 cursor_x = screen_x
                 cursor_y = screen_y
 
+                # Update new atom position in bond mode
+                if mode == Mode.BOND and bond_new_atom_idx is not None:
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                        state.box, state.scale,
+                                                        screen_dims, state.y_offset)
+                    conf = state.mol.GetConformer()
+                    conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
+                    need_redraw = True
+
         # Enter move mode
         elif key == 'm':
             mode = Mode.MOVE
             need_redraw = True
+
+        # Enter bond mode
+        elif key == 'b':
+            # Find atom at cursor to start bond from
+            start_idx = find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims)
+            if start_idx is not None:
+                # Add new C atom at cursor position
+                bond_start_atom_idx = start_idx
+                bond_new_atom_idx = state.mol.AddAtom(Chem.Atom('C'))
+
+                # Set position of new atom
+                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                    state.box, state.scale,
+                                                    screen_dims, state.y_offset)
+                conf = state.mol.GetConformer()
+                conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
+
+                # Add bond between start atom and new atom
+                state.mol.AddBond(bond_start_atom_idx, bond_new_atom_idx,
+                                  Chem.BondType.SINGLE)
+
+                # Enter bond mode
+                mode = Mode.BOND
+                need_redraw = True
 
         # Enter SMILES string
         elif key == 's':
