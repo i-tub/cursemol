@@ -78,19 +78,37 @@ ELEMENT_COLORS = {
     'I': 4,  # Green
 }
 
-# Instructions (try to keep lines under 80 characters and more or less balanced)
-INSTRUCTIONS = [
-    "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
-    "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | b/123/wd: bond | ?: help"
-]
-
-
 class Mode(Enum):
     """UI mode for the main loop."""
     NORMAL = "normal"
     MOVE = "move"
     SELECT = "select"
     BOND = "bond"
+
+
+# Instructions (try to keep lines under 80 characters and more or less balanced)
+# All modes should have the same number of instruction lines
+INSTRUCTIONS = {
+    Mode.NORMAL: [
+        "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
+        "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | b/123/wd: bond | ?: help"
+    ],
+    Mode.MOVE: [
+        "[Move molecule mode]",
+        "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
+    ],
+    Mode.SELECT: [
+        "[Area delete mode]",
+        "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
+    ],
+    Mode.BOND: [
+        "[Add bond mode]",
+        "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
+    ]
+}
+
+# Number of instruction lines (should match all entries in INSTRUCTIONS dict)
+INSTRUCTION_LINES = 2
 
 
 @dataclass
@@ -118,7 +136,7 @@ class ScreenDimensions:
     @property
     def rows(self):
         """Drawable rows (excluding instruction lines)."""
-        return self.max_y - len(INSTRUCTIONS)
+        return self.max_y - INSTRUCTION_LINES
 
 
 class UndoHistory:
@@ -1178,31 +1196,11 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
 
 def draw_instructions(stdscr, screen_dims, mode):
     """Draw instructions at the bottom of the screen."""
-    if mode == Mode.SELECT:
-        # Show selection mode instructions
-        instructions = [
-            "[Area delete mode]",
-            "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
-        ]
-    elif mode == Mode.MOVE:
-        # Show move mode instructions
-        instructions = [
-            "[Move molecule mode]",
-            "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
-        ]
-    elif mode == Mode.BOND:
-        # Show bond mode instructions
-        instructions = [
-            "[Add bond mode]",
-            "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
-        ]
-    else:
-        # Show normal instructions
-        instructions = INSTRUCTIONS
+    instructions = INSTRUCTIONS[mode]
 
     for i, line in enumerate(instructions):
         try:
-            stdscr.addstr(screen_dims.max_y - len(INSTRUCTIONS) + i, 0,
+            stdscr.addstr(screen_dims.max_y - INSTRUCTION_LINES + i, 0,
                           line[:screen_dims.max_x - 1])
         except curses.error:
             pass
