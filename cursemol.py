@@ -88,7 +88,6 @@ class Mode(Enum):
 
 
 # Instructions (try to keep lines under 80 characters and more or less balanced)
-# All modes should have the same number of instruction lines
 INSTRUCTIONS = {
     Mode.NORMAL: [
         "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
@@ -96,7 +95,7 @@ INSTRUCTIONS = {
     ],
     Mode.MOVE: [
         "[Move molecule mode]",
-        "hjkl: move molecule | Esc/Enter: leave move mode | q: quit"
+        "hjkl/HJKL: move molecule | Esc/Enter: leave move mode | q: quit"
     ],
     Mode.SELECT: [
         "[Area delete mode]",
@@ -107,8 +106,8 @@ INSTRUCTIONS = {
     ]
 }
 
-# Number of instruction lines (should match all entries in INSTRUCTIONS dict)
-INSTRUCTION_LINES = 2
+# Number of instruction lines to reserve at the bottom of the screen.
+INSTRUCTION_LINES = max(len(v) for v in INSTRUCTIONS.values())
 
 
 @dataclass
@@ -1451,15 +1450,28 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Fast cursor movement
         elif key in 'HJKL':
-            if key == 'H':  # fast left
-                cursor_x = max(0, cursor_x - 10)
-            elif key == 'J':  # fast down
-                cursor_y = min(screen_dims.rows - 1,
-                               cursor_y + int(10 * ASPECT_RATIO))
-            elif key == 'K':  # fast up
-                cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
-            elif key == 'L':  # fast right
-                cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
+            if mode == Mode.MOVE:
+                # In move mode, hjkl translates the molecule
+                if key == 'H':  # shift left
+                    shift_view(state, 10, 0)
+                elif key == 'J':  # shift down
+                    shift_view(state, 0, 10)
+                elif key == 'K':  # shift up
+                    shift_view(state, 0, -10)
+                elif key == 'L':  # shift right
+                    shift_view(state, -10, 0)
+                need_redraw = True
+            else:
+                # Normal/select/bond mode: move cursor
+                if key == 'H':  # fast left
+                    cursor_x = max(0, cursor_x - 10)
+                elif key == 'J':  # fast down
+                    cursor_y = min(screen_dims.rows - 1,
+                                   cursor_y + int(10 * ASPECT_RATIO))
+                elif key == 'K':  # fast up
+                    cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
+                elif key == 'L':  # fast right
+                    cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
 
             # Update new atom position in bond mode
             if mode == Mode.BOND and bond_new_atom_idx is not None:
