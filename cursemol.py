@@ -307,7 +307,7 @@ def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
     return None
 
 
-def find_nearest_atom(state, cursor_x, cursor_y, screen_dims):
+def find_nearest_atom(state, cursor_x, cursor_y, screen_dims, exclude_atom_idx=None):
     """
     Find the atom nearest to the cursor position.
     Returns (atom_index, screen_x, screen_y) or None if no atoms.
@@ -318,12 +318,18 @@ def find_nearest_atom(state, cursor_x, cursor_y, screen_dims):
 
     for atom, screen_x, screen_y in iter_atom_screen_positions(
             state, screen_dims):
+        atom_idx = atom.GetIdx()
+
+        # Skip excluded atom
+        if exclude_atom_idx is not None and atom_idx == exclude_atom_idx:
+            continue
+
         # Calculate squared distance (avoid sqrt for performance)
         dist_sq = (screen_x - cursor_x)**2 + (screen_y - cursor_y)**2
 
         if dist_sq < min_dist_sq:
             min_dist_sq = dist_sq
-            nearest_atom = atom.GetIdx()
+            nearest_atom = atom_idx
             nearest_pos = (screen_x, screen_y)
 
     if nearest_atom is not None:
@@ -1479,6 +1485,25 @@ def main_loop(stdscr, initial_smiles=None):
                 # Ignore all other keys in selection mode
                 continue
 
+        # Snap to nearest atom
+        elif key == ' ':
+            # In bond mode, exclude the new atom from snap search
+            exclude_idx = bond_new_atom_idx if mode == Mode.BOND else None
+            result = find_nearest_atom(state, cursor_x, cursor_y, screen_dims, exclude_idx)
+            if result is not None:
+                _, screen_x, screen_y = result
+                cursor_x = screen_x
+                cursor_y = screen_y
+
+                # Update new atom position in bond mode
+                if mode == Mode.BOND and bond_new_atom_idx is not None:
+                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
+                                                        state.box, state.scale,
+                                                        screen_dims, state.y_offset)
+                    conf = state.mol.GetConformer()
+                    conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
+                    need_redraw = True
+
         # Special handling for bond mode
         elif mode == Mode.BOND:
             if key == '\n':  # Enter - accept bond
@@ -1521,23 +1546,6 @@ def main_loop(stdscr, initial_smiles=None):
             else:
                 # Ignore all other keys in bond mode
                 continue
-
-        # Snap to nearest atom
-        elif key == ' ':
-            result = find_nearest_atom(state, cursor_x, cursor_y, screen_dims)
-            if result is not None:
-                _, screen_x, screen_y = result
-                cursor_x = screen_x
-                cursor_y = screen_y
-
-                # Update new atom position in bond mode
-                if mode == Mode.BOND and bond_new_atom_idx is not None:
-                    mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                                        state.box, state.scale,
-                                                        screen_dims, state.y_offset)
-                    conf = state.mol.GetConformer()
-                    conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
-                    need_redraw = True
 
         # Enter move mode
         elif key == 'm':
