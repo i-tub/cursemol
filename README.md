@@ -32,6 +32,7 @@ Controls:
   X                - Area delete (select rectangle, Enter to delete, Esc to cancel)
   +, -             - Increase/decrease formal charge on atom
   <, >             - Zoom out/in
+  b                - Add bond mode (add atom and move it, Enter to accept, Esc to cancel)
   1, 2, 3          - Add bond or change bond (order 1/2/3) between nearest atoms
   w, d             - Add/change to wedge or dash bond (press again to reverse)
   @                - Clear canvas (reset to blank slate)

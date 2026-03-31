@@ -78,6 +78,7 @@ ELEMENT_COLORS = {
     'I': 4,  # Green
 }
 
+
 class Mode(Enum):
     """UI mode for the main loop."""
     NORMAL = "normal"
@@ -102,8 +103,7 @@ INSTRUCTIONS = {
         "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
     ],
     Mode.BOND: [
-        "[Add bond mode]",
-        "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
+        "[Add bond mode]", "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
     ]
 }
 
@@ -325,7 +325,11 @@ def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
     return None
 
 
-def find_nearest_atom(state, cursor_x, cursor_y, screen_dims, exclude_atom_idx=None):
+def find_nearest_atom(state,
+                      cursor_x,
+                      cursor_y,
+                      screen_dims,
+                      exclude_atom_idx=None):
     """
     Find the atom nearest to the cursor position.
     Returns (atom_index, screen_x, screen_y) or None if no atoms.
@@ -673,6 +677,21 @@ def draw_mol(stdscr, state, screen_dims):
     render_screen_buffer(stdscr, screen, screen_colors)
 
 
+def assign_stereo(mol):
+    """
+    Assign stereochemical state to the molecule based on its geometry and bond
+    directions (wedges/dashes).
+    """
+    # Don't set aromaticity because we want to keep the Kekule representation
+    # for sketching.
+    flags = (Chem.SanitizeFlags.SANITIZE_ALL &
+             ~Chem.SanitizeFlags.SANITIZE_SETAROMATICITY)
+    Chem.SanitizeMol(mol, flags)
+    Chem.DetectBondStereochemistry(mol)
+    Chem.AssignChiralTypesFromBondDirs(mol)
+    Chem.AssignStereochemistry(mol, force=True)
+
+
 def get_smiles(mol):
     """
     Generate a SMILES deriving the stereochemical configuration from atomic
@@ -680,10 +699,7 @@ def get_smiles(mol):
     """
     mol_for_smiles = Chem.Mol(mol)
     try:
-        Chem.SanitizeMol(mol_for_smiles)
-        Chem.DetectBondStereochemistry(mol_for_smiles)
-        Chem.AssignChiralTypesFromBondDirs(mol_for_smiles)
-        Chem.AssignStereochemistry(mol_for_smiles, force=True)
+        assign_stereo(mol_for_smiles)
         mol_for_smiles = Chem.RemoveHs(mol_for_smiles)
     except:
         logging.exception("get_smiles error")
@@ -995,11 +1011,20 @@ def cleanup_coordinates(state, screen_dims):
     Regenerate 2D coordinates for the molecule and recenter the view.
     Keeps the current zoom level. Returns True if successful.
     """
+    mol = state.mol
     try:
-        AllChem.Compute2DCoords(state.mol)
+        assign_stereo(mol)
+
+        # Clear bond directions because we'll have to recompute them
+        # for the new coordinates.
+        for bond in mol.GetBonds():
+            bond.SetBondDir(Chem.BondDir.NONE)
+        AllChem.Compute2DCoords(mol)
+        Chem.WedgeMolBonds(mol, mol.GetConformer())
+
         if state.scale is not None:
             state.box, state.y_offset = recalculate_box_and_offset(
-                state.mol, state.scale, screen_dims)
+                mol, state.scale, screen_dims)
         return True
     except Exception:
         logging.exception("Error regenerating coordinates")
@@ -1416,7 +1441,8 @@ def main_loop(stdscr, initial_smiles=None):
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
                                                         state.box, state.scale,
-                                                        screen_dims, state.y_offset)
+                                                        screen_dims,
+                                                        state.y_offset)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -1487,7 +1513,8 @@ def main_loop(stdscr, initial_smiles=None):
         elif key == ' ':
             # In bond mode, exclude the new atom from snap search
             exclude_idx = bond_new_atom_idx if mode == Mode.BOND else None
-            result = find_nearest_atom(state, cursor_x, cursor_y, screen_dims, exclude_idx)
+            result = find_nearest_atom(state, cursor_x, cursor_y, screen_dims,
+                                       exclude_idx)
             if result is not None:
                 _, screen_x, screen_y = result
                 cursor_x = screen_x
@@ -1497,7 +1524,8 @@ def main_loop(stdscr, initial_smiles=None):
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
                                                         state.box, state.scale,
-                                                        screen_dims, state.y_offset)
+                                                        screen_dims,
+                                                        state.y_offset)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
                     need_redraw = True
@@ -1519,7 +1547,8 @@ def main_loop(stdscr, initial_smiles=None):
                         adjusted_start_idx -= 1
                     # Create bond (only if not self-loop)
                     if adjusted_start_idx != target_atom_idx:
-                        modify_bond(state.mol, adjusted_start_idx, target_atom_idx, 1)
+                        modify_bond(state.mol, adjusted_start_idx,
+                                    target_atom_idx, 1)
                 # else: leave new atom where it is
 
                 # Push undo and exit bond mode
@@ -1553,7 +1582,8 @@ def main_loop(stdscr, initial_smiles=None):
         # Enter bond mode
         elif key == 'b':
             # Find atom at cursor to start bond from
-            start_idx = find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims)
+            start_idx = find_atom_at_cursor(state, cursor_x, cursor_y,
+                                            screen_dims)
             if start_idx is not None:
                 # Add new C atom at cursor position
                 bond_start_atom_idx = start_idx
@@ -1629,7 +1659,8 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Delete fragment (all atoms connected to cursor atom)
         elif key == 'D':
-            if delete_fragment_at_cursor(state, cursor_x, cursor_y, screen_dims):
+            if delete_fragment_at_cursor(state, cursor_x, cursor_y,
+                                         screen_dims):
                 history.push(state)
                 need_redraw = True
 
