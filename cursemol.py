@@ -1413,28 +1413,35 @@ def main_loop(stdscr, initial_smiles=None):
             continue
 
         # Handle movement (vi-style)
-        if key in 'hjkl':
+        if key in 'hjklHJKL':
+            # Determine delta (1 for hjkl, 10 for HJKL)
+            delta = 10 if key.isupper() else 1
+            key_lower = key.lower()
+
             if mode == Mode.MOVE:
                 # In move mode, hjkl translates the molecule
-                if key == 'h':  # shift left
-                    shift_view(state, 1, 0)
-                elif key == 'j':  # shift down
-                    shift_view(state, 0, 1)
-                elif key == 'k':  # shift up
-                    shift_view(state, 0, -1)
-                elif key == 'l':  # shift right
-                    shift_view(state, -1, 0)
+                if key_lower == 'h':  # shift left
+                    shift_view(state, delta, 0)
+                elif key_lower == 'j':  # shift down
+                    shift_view(state, 0, delta)
+                elif key_lower == 'k':  # shift up
+                    shift_view(state, 0, -delta)
+                elif key_lower == 'l':  # shift right
+                    shift_view(state, -delta, 0)
                 need_redraw = True
             else:
                 # Normal/select/bond mode: move cursor
-                if key == 'h':  # left
-                    cursor_x = max(0, cursor_x - 1)
-                elif key == 'j':  # down
-                    cursor_y = min(screen_dims.rows - 1, cursor_y + 1)
-                elif key == 'k':  # up
-                    cursor_y = max(0, cursor_y - 1)
-                elif key == 'l':  # right
-                    cursor_x = min(screen_dims.max_x - 1, cursor_x + 1)
+                # For vertical movement with fast keys, apply aspect ratio
+                delta_y = int(delta * ASPECT_RATIO) if key.isupper() else delta
+
+                if key_lower == 'h':  # left
+                    cursor_x = max(0, cursor_x - delta)
+                elif key_lower == 'j':  # down
+                    cursor_y = min(screen_dims.rows - 1, cursor_y + delta_y)
+                elif key_lower == 'k':  # up
+                    cursor_y = max(0, cursor_y - delta_y)
+                elif key_lower == 'l':  # right
+                    cursor_x = min(screen_dims.max_x - 1, cursor_x + delta)
 
                 # Update new atom position in bond mode
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
@@ -1447,42 +1454,6 @@ def main_loop(stdscr, initial_smiles=None):
 
                 if mode in (Mode.SELECT, Mode.BOND):
                     need_redraw = True
-
-        # Fast cursor movement
-        elif key in 'HJKL':
-            if mode == Mode.MOVE:
-                # In move mode, hjkl translates the molecule
-                if key == 'H':  # shift left
-                    shift_view(state, 10, 0)
-                elif key == 'J':  # shift down
-                    shift_view(state, 0, 10)
-                elif key == 'K':  # shift up
-                    shift_view(state, 0, -10)
-                elif key == 'L':  # shift right
-                    shift_view(state, -10, 0)
-                need_redraw = True
-            else:
-                # Normal/select/bond mode: move cursor
-                if key == 'H':  # fast left
-                    cursor_x = max(0, cursor_x - 10)
-                elif key == 'J':  # fast down
-                    cursor_y = min(screen_dims.rows - 1,
-                                   cursor_y + int(10 * ASPECT_RATIO))
-                elif key == 'K':  # fast up
-                    cursor_y = max(0, cursor_y - int(10 * ASPECT_RATIO))
-                elif key == 'L':  # fast right
-                    cursor_x = min(screen_dims.max_x - 1, cursor_x + 10)
-
-            # Update new atom position in bond mode
-            if mode == Mode.BOND and bond_new_atom_idx is not None:
-                mol_x, mol_y = screen_to_mol_coords(cursor_x, cursor_y,
-                                                    state.box, state.scale,
-                                                    screen_dims, state.y_offset)
-                conf = state.mol.GetConformer()
-                conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
-
-            if mode in (Mode.SELECT, Mode.BOND):
-                need_redraw = True
 
         # Special handling for move mode
         elif mode == Mode.MOVE:
