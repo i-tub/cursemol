@@ -554,7 +554,7 @@ def calculate_box_and_scale(mol, max_x, max_y):
     return box, scale, y_offset
 
 
-def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
+def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
     """
     Draw a single atom with its symbol and charge into the screen buffer.
 
@@ -564,6 +564,8 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
         atom: RDKit atom object
         x, y: screen coordinates for the atom
         rows, cols: screen buffer dimensions
+        state: State object with scale, box, y_offset
+        conf: RDKit conformer object
     """
     sym = atom.GetSymbol()
     color = ELEMENT_COLORS.get(sym, 0)  # Get color for this element
@@ -580,6 +582,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
 
     # Draw hydrogens if heteroatom
     h_str = ''
+    h_on_left = False
     if sym in 'NOPS':
         atom.UpdatePropertyCache()
         h = atom.GetTotalNumHs()
@@ -587,7 +590,27 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
             h_str = 'H'
             if h > 1:
                 h_str += {2: '₂', 3: '₃', 4: '₄'}.get(h, str(h))
-            h_x = x + len(sym)
+
+            # Check neighbor positions to determine hydrogen placement
+            has_neighbor_on_left = False
+            has_neighbor_on_right = False
+            neighbors = atom.GetNeighbors()
+
+            for neighbor in neighbors:
+                neighbor_pos = conf.GetAtomPosition(neighbor.GetIdx())
+                neighbor_x = PADDING + int((neighbor_pos.x - state.box[0][0]) * state.scale[0])
+                if neighbor_x < x:
+                    has_neighbor_on_left = True
+                if neighbor_x > x:
+                    has_neighbor_on_right = True
+
+            # Draw hydrogens on the left if no neighbors on the left AND at least one on the right
+            if not has_neighbor_on_left and has_neighbor_on_right:
+                h_x = x - len(h_str)
+                h_on_left = True
+            else:
+                h_x = x + len(sym)
+
             for i, c in enumerate(h_str):
                 if 0 <= y < rows and 0 <= h_x + i < cols:
                     screen[y][h_x + i] = c
@@ -609,7 +632,11 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
 
         # Position: one cell above, one cell to the right of the symbol
         # (accounts for symbol length - e.g., "Cl" vs "C")
-        charge_x = x + len(sym) + len(h_str)
+        # When H is on the left, charge goes to the right of the symbol only
+        if h_on_left:
+            charge_x = x + len(sym)
+        else:
+            charge_x = x + len(sym) + len(h_str)
         charge_y = y - 1
 
         # Draw charge string with same color and bold as atom
@@ -652,7 +679,7 @@ def fill_screen_buffer(state, screen_dims):
 
     # Draw atoms
     for atom, x, y in iter_atom_screen_positions(state, screen_dims):
-        draw_atom(screen, screen_colors, atom, x, y, rows, cols)
+        draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf)
 
     return screen, screen_colors
 
