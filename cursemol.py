@@ -578,6 +578,22 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
             # Store color and bold flag (color in lower bits, bold in high bit)
             screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
 
+    # Draw hydrogens if heteroatom
+    h_str = ''
+    if sym in 'NOPS':
+        atom.UpdatePropertyCache()
+        h = atom.GetTotalNumHs()
+        if h > 0:
+            h_str = 'H'
+            if h > 1:
+                h_str += {2: '₂', 3: '₃', 4: '₄'}.get(h, str(h))
+            h_x = x + len(sym)
+            for i, c in enumerate(h_str):
+                if 0 <= y < rows and 0 <= h_x + i < cols:
+                    screen[y][h_x + i] = c
+                    screen_colors[y][h_x + i] = (color |
+                                                 (0x100 if is_bold else 0))
+
     # Draw formal charge if non-zero
     charge = atom.GetFormalCharge()
     if charge != 0:
@@ -593,7 +609,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols):
 
         # Position: one cell above, one cell to the right of the symbol
         # (accounts for symbol length - e.g., "Cl" vs "C")
-        charge_x = x + len(sym)
+        charge_x = x + len(sym) + len(h_str)
         charge_y = y - 1
 
         # Draw charge string with same color and bold as atom
