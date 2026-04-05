@@ -29,6 +29,8 @@ Controls:
   q                - Quit and print SMILES to stdout
 """
 
+__version__ = "4.1.rc2"
+
 import argparse
 import atexit
 import curses

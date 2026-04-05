@@ -1,6 +1,6 @@
 [project]
     name = "CurseMol"
-    version = "4.1.rc1"
+    dynamic = ["version"]
     description = "Molecular sketcher for the terminally committed"
     authors = [
         { name = "Ivan Tubert-Brohman", email = "ivan.tubert@gmail.com" }
@@ -31,3 +31,6 @@
 [build-system]
     requires = ["hatchling"]
     build-backend = "hatchling.build"
+
+[tool.hatch.version]
+    path = "src/cursemol/__init__.py"

@@ -12,7 +12,7 @@ You can read in a SMILES string or start from a blank canvas, and when you
 exit, the final SMILES is printed to stdout, which can be useful for piping
 directly into other programs.
 
-![Screen recording of sketching naproxen](demo.gif)
+![Screen recording of sketching naproxen](https://raw.githubusercontent.com/i-tub/cursemol/master/demo.gif)
 
 ```
 Controls:
