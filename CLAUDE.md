@@ -6,23 +6,23 @@ with code in this repository.
 ## Project Overview
 
 CurseMol is a terminal-based molecular sketcher built with Python curses and
-RDKit. It's a single-file application (~1460 lines) that allows interactive
-drawing and editing of chemical structures in the terminal.
+RDKit. It's a Python package (~1861 lines) that allows interactive drawing
+and editing of chemical structures in the terminal.
 
 ## Running the Application
 
 ```bash
-# Run directly
-./cursemol.py
+# Install the package
+uv sync
 
-# Or with Python
-python cursemol.py
+# Run the installed command
+cursemol
 
 # Load a SMILES string on startup
-./cursemol.py "CCO"
+cursemol "CCO"
 
 # See all options
-./cursemol.py --help
+cursemol --help
 ```
 
 The application outputs the final SMILES string to stdout when you quit (q).
@@ -30,17 +30,21 @@ The application outputs the final SMILES string to stdout when you quit (q).
 ## Development Setup
 
 ```bash
-# Install dependencies (uses uv)
+# Install dependencies and package in editable mode
 uv sync
 
-# Activate virtual environment
-source .venv/bin/activate
-
 # Format code with yapf (Google style as configured in .style.yapf)
-yapf -i cursemol.py
+yapf -i src/cursemol/__init__.py
 ```
 
 ## Architecture
+
+### Project Structure
+
+The package is organized as follows:
+- `pyproject.toml`: Package configuration using hatchling build backend
+- `src/cursemol/__init__.py`: Main application code (~1861 lines)
+- Entry point: `cursemol` command (configured in pyproject.toml)
 
 ### Core Data Structures
 
@@ -48,6 +52,9 @@ yapf -i cursemol.py
   box (bounding coordinates), y_offset, and SMILES display toggle
 - **UndoHistory**: Manages undo/redo stack by saving/restoring serialized
   molecule states
+- **ScreenDimensions**: Holds screen dimensions (rows, cols, max_y, max_x)
+- **Mode**: Enum for UI modes (NORMAL, MOVE, SELECT, BOND)
+- **capture_rdkit_log**: Context manager for capturing RDKit logging output
 
 ### Coordinate System
 
@@ -113,11 +120,20 @@ The rendering pipeline:
 4. `render_screen_buffer()`: Writes buffer to screen with colors
 5. Adds status line and optional SMILES display
 
+### Application Flow
+
+- `main()`: Entry point that parses arguments and initializes the application
+- `setup_tty()`: Ensures proper TTY handling for curses
+- `init_curses()`: Configures curses environment (colors, cursor visibility)
+- `main_loop()`: Main event loop handling keyboard input and screen updates
+- `redraw_screen()`: Coordinates rendering of molecule, UI elements, and messages
+
 ## Key Implementation Details
 
 ### Cursor Navigation
 - The cursor can be on empty space, atoms, or bonds
 - `find_atom_at_cursor()`: Locates atom within tolerance
+- `find_nearest_atom()`: Finds closest atom for snapping or bond creation
 - `find_bond_atoms()`: Identifies which bond the cursor is over by checking
   proximity to line segments
 
@@ -135,3 +151,11 @@ The rendering pipeline:
 When appending to a bond (not an atom), the fragment forms a ring by
 connecting its first and last atoms to the two bond atoms. This allows
 easy ring fusion operations.
+
+### UI Helpers
+- `prompt_user_input()`: Generic prompt for text input
+- `enter_smiles()`: Specialized prompt for SMILES strings
+- `enter_element()`: Specialized prompt for element symbols
+- `show_help()`: Displays help screen with keybindings
+- `draw_instructions()`: Shows mode-specific status line
+- `draw_error_message()`: Displays error messages to user
