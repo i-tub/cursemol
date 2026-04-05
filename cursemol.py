@@ -554,6 +554,25 @@ def calculate_box_and_scale(mol, max_x, max_y):
     return box, scale, y_offset
 
 
+def draw_string(screen, screen_colors, s, x, y, rows, cols, color, is_bold):
+    """
+    Draw a string into the screen buffer with the given color and bold flag.
+
+    Args:
+        screen: 2D character array
+        screen_colors: 2D color/attribute array
+        s: String to draw
+        x, y: screen coordinates for the start of the string
+        rows, cols: screen buffer dimensions
+        color: color code for the string
+        is_bold: whether to draw the string in bold
+    """
+    for i, c in enumerate(s):
+        if 0 <= y < rows and 0 <= x + i < cols:
+            screen[y][x + i] = c
+            screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
+
+
 def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
     """
     Draw a single atom with its symbol and charge into the screen buffer.
@@ -573,12 +592,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
     is_bold = sym != 'C'
 
     # Draw atom symbol
-    for i, c in enumerate(sym):
-        # Bounds check to avoid IndexError
-        if 0 <= y < rows and 0 <= x + i < cols:
-            screen[y][x + i] = c
-            # Store color and bold flag (color in lower bits, bold in high bit)
-            screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
+    draw_string(screen, screen_colors, sym, x, y, rows, cols, color, is_bold)
 
     # Draw hydrogens if heteroatom
     h_str = ''
@@ -598,24 +612,23 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
 
             for neighbor in neighbors:
                 neighbor_pos = conf.GetAtomPosition(neighbor.GetIdx())
-                neighbor_x = PADDING + int((neighbor_pos.x - state.box[0][0]) * state.scale[0])
+                neighbor_x = PADDING + int(
+                    (neighbor_pos.x - state.box[0][0]) * state.scale[0])
                 if neighbor_x < x:
                     has_neighbor_on_left = True
                 if neighbor_x > x:
                     has_neighbor_on_right = True
 
-            # Draw hydrogens on the left if no neighbors on the left AND at least one on the right
+            # Draw hydrogens on the left if no neighbors on the left AND at
+            # least one on the right
             if not has_neighbor_on_left and has_neighbor_on_right:
                 h_x = x - len(h_str)
                 h_on_left = True
             else:
                 h_x = x + len(sym)
 
-            for i, c in enumerate(h_str):
-                if 0 <= y < rows and 0 <= h_x + i < cols:
-                    screen[y][h_x + i] = c
-                    screen_colors[y][h_x + i] = (color |
-                                                 (0x100 if is_bold else 0))
+            draw_string(screen, screen_colors, h_str, h_x, y, rows, cols, color,
+                        is_bold)
 
     # Draw formal charge if non-zero
     charge = atom.GetFormalCharge()
@@ -639,12 +652,8 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
             charge_x = x + len(sym) + len(h_str)
         charge_y = y - 1
 
-        # Draw charge string with same color and bold as atom
-        for i, c in enumerate(charge_str):
-            if 0 <= charge_y < rows and 0 <= charge_x + i < cols:
-                screen[charge_y][charge_x + i] = c
-                screen_colors[charge_y][charge_x +
-                                        i] = color | (0x100 if is_bold else 0)
+        draw_string(screen, screen_colors, charge_str, charge_x, charge_y, rows,
+                    cols, color, is_bold)
 
 
 def fill_screen_buffer(state, screen_dims):
