@@ -34,3 +34,9 @@
 
 [tool.hatch.version]
     path = "src/cursemol/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+    include = [
+        "src",
+        "demo.gif",
+    ]
