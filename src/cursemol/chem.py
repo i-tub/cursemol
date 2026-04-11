@@ -136,7 +136,7 @@ def get_smiles(mol):
     try:
         assign_stereo(mol_for_smiles)
         mol_for_smiles = Chem.RemoveHs(mol_for_smiles)
-    except:
+    except Exception:
         logging.exception("get_smiles error")
         mol_for_smiles = mol
     return Chem.MolToSmiles(mol_for_smiles)
