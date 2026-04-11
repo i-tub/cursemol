@@ -4,6 +4,7 @@ undo/redo history.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 
 from rdkit import Chem
 
@@ -13,6 +14,14 @@ DEFAULT_SCALE = 8.0  # columns per angstrom
 ASPECT_RATIO = 0.4  # horizontal / vertical
 PADDING = 5
 INSTRUCTION_LINES = 2
+
+
+class Mode(Enum):
+    """UI mode for the main loop."""
+    NORMAL = "normal"
+    MOVE = "move"
+    SELECT = "select"
+    BOND = "bond"
 
 
 @dataclass
