@@ -285,7 +285,12 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
     h_str = ''
     h_on_left = False
     if sym in 'NOPS':
-        atom.UpdatePropertyCache()
+        try:
+            atom.UpdatePropertyCache()
+        except Exception:
+            # Ignore exception; H count may be wrong but it's up to the user to
+            # fix the charge if necessary.
+            pass
         h = atom.GetTotalNumHs()
         if h > 0:
             h_str = 'H'
