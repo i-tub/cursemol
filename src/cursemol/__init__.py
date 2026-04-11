@@ -40,13 +40,12 @@ import io
 import logging
 import math
 import os
-import re
 import sys
 
 from rdkit import Chem
-from rdkit import Geometry
-from rdkit import RDLogger
 from rdkit.Chem import AllChem
+
+from . import chem
 
 rdkit_logger = logging.getLogger('rdkit')
 
@@ -178,29 +177,6 @@ class UndoHistory:
         self._history = self._history[:self._index + 1]
         self._history.append(self.state.copy())
         self._index = len(self._history) - 1
-
-
-class capture_rdkit_log:
-    """
-    Context manager to capture RDKit log messages.
-    """
-
-    def __enter__(self):
-        self._stream = io.StringIO()
-        self._old_stream = rdkit_logger.handlers[0].setStream(self._stream)
-        return self
-
-    def __exit__(self, *a):
-        rdkit_logger.handlers[0].setStream(self._stream)
-
-    def getMessage(self):
-        """Return log messages after stripping them of timestamps"""
-        return re.sub(r'\[..:..:..] ', '', self._stream.getvalue())
-
-
-def get_box(conf):
-    xyz = conf.GetPositions()
-    return (xyz.min(axis=0), xyz.max(axis=0))
 
 
 def normalize_rect(x1, y1, x2, y2):
@@ -434,79 +410,6 @@ def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
     return best_pair
 
 
-def reverse_bond(bond):
-    """
-    Reverse bond by deleting and re-adding with swapped atoms.
-    """
-    mol = bond.GetOwningMol()
-    a1 = bond.GetBeginAtomIdx()
-    a2 = bond.GetEndAtomIdx()
-    bond_dir = bond.GetBondDir()
-    bond_type = bond.GetBondType()
-    mol.RemoveBond(a1, a2)
-    bond_idx = mol.AddBond(a2, a1, bond_type) - 1
-    bond = mol.GetBondWithIdx(bond_idx)
-    bond.SetBondDir(bond_dir)
-
-
-def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
-    """
-    Modify or create a bond between two atoms.
-    bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
-    bond_dir: Optional bond direction (e.g., Chem.BondDir.BEGINWEDGE)
-
-    If a bond already has the specified direction, it will be reversed
-    (atoms swapped).
-
-    Returns True if successful, False if no change was made.
-    """
-    bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
-
-    # Map bond order to BondType
-    bond_type_map = {
-        1: Chem.BondType.SINGLE,
-        2: Chem.BondType.DOUBLE,
-        3: Chem.BondType.TRIPLE
-    }
-
-    if bond_order == 0:
-        # Delete bond if it exists
-        if bond is not None:
-            mol.RemoveBond(atom1_idx, atom2_idx)
-        else:
-            # Bond doesn't exist, nothing to delete
-            return False
-    else:
-        bond_type = bond_type_map[bond_order]
-
-        if bond is not None:
-            current_type = bond.GetBondType()
-            current_dir = bond.GetBondDir()
-
-            if (current_type == bond_type and bond_dir is None and
-                    current_dir == Chem.BondDir.NONE):
-                return False
-
-            # Check if bond already has this exact type and direction
-            # If so, reverse the bond (swap atoms)
-            if (current_type == bond_type and bond_dir is not None and
-                    current_dir == bond_dir):
-                reverse_bond(bond)
-            else:
-                # Modify existing bond
-                bond.SetBondType(bond_type)
-                bond.SetBondDir(Chem.BondDir.NONE if bond_dir is
-                                None else bond_dir)
-        else:
-            # Add new bond
-            mol.AddBond(atom1_idx, atom2_idx, bond_type)
-            if bond_dir is not None:
-                bond = mol.GetBondBetweenAtoms(atom1_idx, atom2_idx)
-                bond.SetBondDir(bond_dir)
-
-    return True
-
-
 def recalculate_box_and_offset(mol, scale, screen_dims):
     """
     Recalculate box and y_offset for a molecule at a given scale.
@@ -514,7 +417,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
     Returns (box, y_offset).
     """
     conf = mol.GetConformer(0)
-    actual_box = get_box(conf)
+    actual_box = chem.get_box(conf)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate center of molecule
@@ -541,7 +444,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule, centered on screen."""
     conf = mol.GetConformer(0)
-    actual_box = get_box(conf)
+    actual_box = chem.get_box(conf)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate scale to fit the molecule
@@ -738,36 +641,6 @@ def draw_mol(stdscr, state, screen_dims):
     render_screen_buffer(stdscr, screen, screen_colors)
 
 
-def assign_stereo(mol):
-    """
-    Assign stereochemical state to the molecule based on its geometry and bond
-    directions (wedges/dashes).
-    """
-    # Don't set aromaticity because we want to keep the Kekule representation
-    # for sketching.
-    flags = (Chem.SanitizeFlags.SANITIZE_ALL &
-             ~Chem.SanitizeFlags.SANITIZE_SETAROMATICITY)
-    Chem.SanitizeMol(mol, flags)
-    Chem.DetectBondStereochemistry(mol)
-    Chem.AssignChiralTypesFromBondDirs(mol)
-    Chem.AssignStereochemistry(mol, force=True)
-
-
-def get_smiles(mol):
-    """
-    Generate a SMILES deriving the stereochemical configuration from atomic
-    coordinates and bond directions.
-    """
-    mol_for_smiles = Chem.Mol(mol)
-    try:
-        assign_stereo(mol_for_smiles)
-        mol_for_smiles = Chem.RemoveHs(mol_for_smiles)
-    except:
-        logging.exception("get_smiles error")
-        mol_for_smiles = mol
-    return Chem.MolToSmiles(mol_for_smiles)
-
-
 def insert_or_modify_atom(stdscr,
                           state,
                           cursor_x,
@@ -834,8 +707,8 @@ def create_or_adjust_bond(state,
 
     if atom_pair is not None:
         atom1_idx, atom2_idx = atom_pair
-        return modify_bond(state.mol, atom1_idx, atom2_idx, bond_order,
-                           bond_dir)
+        return chem.modify_bond(state.mol, atom1_idx, atom2_idx, bond_order,
+                                bond_dir)
 
     return False
 
@@ -904,7 +777,7 @@ def delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
         atom_pair = find_bond_atoms(state, cursor_x, cursor_y, screen_dims)
         if atom_pair is not None:
             atom1_idx, atom2_idx = atom_pair
-            if modify_bond(state.mol, atom1_idx, atom2_idx, 0):
+            if chem.modify_bond(state.mol, atom1_idx, atom2_idx, 0):
                 return True
 
     return False
@@ -980,7 +853,7 @@ def create_molecule_from_smiles(smiles, screen_dims):
     Create molecule from SMILES string with 2D coordinates.
     Returns (state, error_message); in case of error, state will be None.
     """
-    with capture_rdkit_log() as log:
+    with chem.CaptureRDKitLog() as log:
         m = Chem.MolFromSmiles(smiles)
 
     if m is None:
@@ -1074,7 +947,7 @@ def cleanup_coordinates(state, screen_dims):
     """
     mol = state.mol
     try:
-        assign_stereo(mol)
+        chem.assign_stereo(mol)
 
         # Clear bond directions because we'll have to recompute them
         # for the new coordinates.
@@ -1126,28 +999,6 @@ def zoom_view(state, screen_dims, zoom_factor):
     # Recalculate y_offset for new scale
     mol_display_height = int(mol_height * yscale + 2 * PADDING)
     state.y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
-
-
-def compute_coords_with_fixed_atoms(mol, num_fixed_atoms):
-    """
-    Compute 2D coordinates for a molecule, keeping existing atoms fixed.
-
-    This is useful when adding new atoms to a molecule - the original atoms
-    maintain their positions while new atoms are positioned around them.
-
-    Args:
-        mol: RDKit molecule
-        num_fixed_atoms: Number of atoms at the beginning to keep fixed
-    """
-    # Create coordinate map to keep original atoms fixed
-    coord_map = {}
-    conf = mol.GetConformer()
-    for i in range(num_fixed_atoms):
-        pos = conf.GetAtomPosition(i)
-        coord_map[i] = Geometry.Point2D(pos.x, pos.y)
-
-    # Compute 2D coordinates for new atoms only
-    AllChem.Compute2DCoords(mol, coordMap=coord_map)
 
 
 def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
@@ -1215,7 +1066,7 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
 
     try:
         # Create sidechain molecule
-        with capture_rdkit_log() as log:
+        with chem.CaptureRDKitLog() as log:
             sidechain = Chem.MolFromSmiles(sidechain_smiles)
         if sidechain is None:
             return None, log.getMessage()  # Bad SMILES
@@ -1236,7 +1087,7 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
                                       cursor_x, cursor_y, screen_dims)
 
         # Compute 2D coordinates for new atoms, keeping original atoms fixed
-        compute_coords_with_fixed_atoms(state.mol, start_idx)
+        chem.compute_coords_with_fixed_atoms(state.mol, start_idx)
 
         # Update box to show all atoms while keeping same scale
         box, y_offset = recalculate_box_and_offset(state.mol, state.scale,
@@ -1339,7 +1190,7 @@ def redraw_screen(stdscr,
 
     # Draw SMILES at the top if enabled (after molecule so it's on top)
     if show_smiles:
-        current_smiles = get_smiles(state.mol)
+        current_smiles = chem.get_smiles(state.mol)
         # Wrap SMILES to screen width
         row = 0
         for i in range(0, len(current_smiles), screen_dims.max_x - 1):
@@ -1397,7 +1248,6 @@ def main_loop(stdscr, initial_smiles=None):
     cursor_y, cursor_x = screen_dims.rows // 2, screen_dims.max_x // 2
 
     # SMILES string storage
-    smiles = initial_smiles or ""
     show_smiles = False
 
     # Error message to display (empty string means no error)
@@ -1478,6 +1328,8 @@ def main_loop(stdscr, initial_smiles=None):
         if key in 'hjklHJKL':
             # Determine delta (1 for hjkl, 10 for HJKL)
             delta = 10 if key.isupper() else 1
+            delta_y = int(delta * ASPECT_RATIO) if key.isupper() else delta
+
             key_lower = key.lower()
 
             if mode == Mode.MOVE:
@@ -1485,17 +1337,14 @@ def main_loop(stdscr, initial_smiles=None):
                 if key_lower == 'h':  # shift left
                     shift_view(state, delta, 0)
                 elif key_lower == 'j':  # shift down
-                    shift_view(state, 0, delta)
+                    shift_view(state, 0, delta_y)
                 elif key_lower == 'k':  # shift up
-                    shift_view(state, 0, -delta)
+                    shift_view(state, 0, -delta_y)
                 elif key_lower == 'l':  # shift right
                     shift_view(state, -delta, 0)
                 need_redraw = True
             else:
                 # Normal/select/bond mode: move cursor
-                # For vertical movement with fast keys, apply aspect ratio
-                delta_y = int(delta * ASPECT_RATIO) if key.isupper() else delta
-
                 if key_lower == 'h':  # left
                     cursor_x = max(0, cursor_x - delta)
                 elif key_lower == 'j':  # down
@@ -1525,7 +1374,7 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
             elif key == 'q':
                 # Allow quitting from move mode
-                return get_smiles(state.mol)
+                return chem.get_smiles(state.mol)
             # Ignore all other keys in move mode
             continue
 
@@ -1549,7 +1398,7 @@ def main_loop(stdscr, initial_smiles=None):
                 need_redraw = True
             elif key == 'q':
                 # Allow quitting from selection mode
-                return get_smiles(state.mol)
+                return chem.get_smiles(state.mol)
             else:
                 # Ignore all other keys in selection mode
                 continue
@@ -1592,8 +1441,8 @@ def main_loop(stdscr, initial_smiles=None):
                         adjusted_start_idx -= 1
                     # Create bond (only if not self-loop)
                     if adjusted_start_idx != target_atom_idx:
-                        modify_bond(state.mol, adjusted_start_idx,
-                                    target_atom_idx, 1)
+                        chem.modify_bond(state.mol, adjusted_start_idx,
+                                         target_atom_idx, 1)
                 # else: leave new atom where it is
 
                 # Push undo and exit bond mode
@@ -1614,7 +1463,7 @@ def main_loop(stdscr, initial_smiles=None):
                 # Allow quitting from bond mode (clean up first)
                 if bond_new_atom_idx is not None:
                     state.mol.RemoveAtom(bond_new_atom_idx)
-                return get_smiles(state.mol)
+                return chem.get_smiles(state.mol)
             else:
                 # Ignore all other keys in bond mode
                 continue
@@ -1782,7 +1631,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Quit
         elif key == 'q':
-            return get_smiles(state.mol)
+            return chem.get_smiles(state.mol)
 
 
 def parse_args():
