@@ -13,7 +13,7 @@ from rdkit.Chem import AllChem
 
 from . import canvas
 from . import chem
-from . import state as state_
+from .state import recalculate_box_and_offset
 
 
 def create_or_adjust_bond(state,
@@ -251,7 +251,7 @@ def cleanup_coordinates(state, screen_dims):
         Chem.WedgeMolBonds(mol, mol.GetConformer())
 
         if state.scale is not None:
-            state.box, state.y_offset = state_.recalculate_box_and_offset(
+            state.box, state.y_offset = recalculate_box_and_offset(
                 mol, state.scale, screen_dims)
         return True
     except Exception:

@@ -9,6 +9,36 @@ from . import canvas
 from . import chem
 from .state import Mode
 
+HELP_TEXT = """
+CurseMol - Molecular sketcher for the terminally committed
+
+Controls:
+  h, j, k, l       - Move cursor left/down/up/right (arrow keys supported too)
+  H, J, K, L       - Move cursor faster (10 cells horizontal, 4 cells vertical)
+  Space            - Snap cursor to nearest atom
+  m                - Enter move mode (hjkl moves molecule, Esc to exit)
+  s                - Enter a SMILES string to replace the current molecule
+  S                - Toggle SMILES display
+  i                - Insert/modify atom at cursor position
+  a                - Append atoms from SMILES to atom or bond under cursor
+                     (appending to a bond forms a ring by connecting the bond
+                     atoms to the first and last atoms from the SMILES)
+  c, n, o          - Insert/modify carbon/nitrogen/oxygen atom
+  x                - Delete atom or bond
+  D                - Delete fragment (all atoms connected to cursor atom)
+  X                - Area delete (select rectangle)
+  +, -             - Increase/decrease formal charge on atom
+  <, >             - Zoom out/in
+  b                - Add bond mode (add atom and move it, Enter to accept)
+  1, 2, 3          - Add bond or change bond (order 1/2/3) between nearest atoms
+  w, d             - Add/change to wedge or dash bond (press again to reverse)
+  @                - Clear canvas (reset to blank slate)
+  u, r             - Undo/redo
+  Ctrl-L           - Clean up (regenerate coordinates)
+  ?                - Show this help
+  q                - Quit and print SMILES to stdout
+"""
+
 # Instructions (try to keep lines under 80 characters and more or less balanced)
 INSTRUCTIONS = {
     Mode.NORMAL: [
@@ -234,3 +264,28 @@ def enter_smiles(stdscr, max_y):
 def enter_element(stdscr, max_y):
     """Prompt user to enter an element symbol and return it."""
     return prompt_user_input(stdscr, max_y, "Element symbol: ")
+
+
+def show_help(stdscr, screen_dims):
+    """
+    Display help text and wait for user to press a key.
+    """
+    stdscr.clear()
+    # Display the help text from the docstring
+    help_lines = HELP_TEXT.strip().split('\n')
+
+    # Display help text
+    for i, line in enumerate(help_lines):
+        try:
+            stdscr.addstr(i, 0, line[:screen_dims.max_x - 1])
+        except curses.error:
+            pass
+
+    # Add "press any key" message
+    try:
+        stdscr.addstr(len(help_lines) + 1, 0, "Press any key to exit help")
+    except curses.error:
+        pass
+
+    stdscr.refresh()
+    stdscr.getch()  # Wait for any key
