@@ -45,18 +45,6 @@ def load_smiles(stdscr, screen_dims):
     return (None, "")
 
 
-def clear_canvas(state, screen_dims):
-    """
-    Clear the canvas and reset to blank slate with default settings.
-    Modifies state in place.
-    """
-    empty = State.createEmpty(screen_dims)
-    state.mol = empty.mol
-    state.box = empty.box
-    state.scale = empty.scale
-    state.y_offset = empty.y_offset
-
-
 def shift_view(state, dx_sign, dy_sign):
     """
     Shift the view (pan the molecule) by one step in the given direction.
@@ -520,7 +508,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Clear canvas (reset to blank slate)
         elif key == '@':
-            clear_canvas(state, screen_dims)
+            edit.clear_canvas(state, screen_dims)
             history.push(state)
 
         # Undo

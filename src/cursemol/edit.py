@@ -13,6 +13,7 @@ from rdkit.Chem import AllChem
 
 from . import canvas
 from . import chem
+from .state import State
 from .state import recalculate_box_and_offset
 
 
@@ -257,3 +258,15 @@ def cleanup_coordinates(state, screen_dims):
     except Exception:
         logging.exception("Error regenerating coordinates")
         return False
+
+
+def clear_canvas(state, screen_dims):
+    """
+    Clear the canvas and reset to blank slate with default settings.
+    Modifies state in place.
+    """
+    empty = State.createEmpty(screen_dims)
+    state.mol = empty.mol
+    state.box = empty.box
+    state.scale = empty.scale
+    state.y_offset = empty.y_offset
