@@ -228,7 +228,9 @@ def main_loop(stdscr, initial_smiles=None):
             ui.redraw_screen(stdscr, state, show_smiles, screen_dims, mode,
                              selection_anchor_x, selection_anchor_y, cursor_x,
                              cursor_y, error_message)
-            need_redraw = False
+
+        # Most commands need redraw; the few that don't will set it to False.
+        need_redraw = True
 
         # Move cursor to current position
         try:
@@ -244,7 +246,6 @@ def main_loop(stdscr, initial_smiles=None):
         # Clear error message on any key press
         if error_message:
             error_message = ""
-            need_redraw = True
             continue
 
         # Handle terminal resize
@@ -257,7 +258,6 @@ def main_loop(stdscr, initial_smiles=None):
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, screen_dims.max_x - 1)
             cursor_y = min(cursor_y, screen_dims.rows - 1)
-            need_redraw = True
             continue
 
         # Convert to character (will skip non-char keys)
@@ -265,6 +265,7 @@ def main_loop(stdscr, initial_smiles=None):
             key = ARROW_KEY_MAP.get(key_code) or chr(key_code)
         except (ValueError, OverflowError):
             # Ignore other special keys we don't handle
+            need_redraw = False
             continue
 
         # Handle movement (vi-style)
@@ -285,7 +286,6 @@ def main_loop(stdscr, initial_smiles=None):
                     shift_view(state, 0, -delta_y)
                 elif key_lower == 'l':  # shift right
                     shift_view(state, -delta, 0)
-                need_redraw = True
             else:
                 # Normal/select/bond mode: move cursor
                 if key_lower == 'h':  # left
@@ -305,20 +305,19 @@ def main_loop(stdscr, initial_smiles=None):
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
-                if mode in (Mode.SELECT, Mode.BOND):
-                    need_redraw = True
+                if mode == Mode.NORMAL:
+                    need_redraw = False
 
         # Special handling for move mode
         elif mode == Mode.MOVE:
             if key in '\x1b\n':  # Escape or Enter
                 # Exit move mode
                 mode = Mode.NORMAL
-                need_redraw = True
             elif key == 'q':
                 # Allow quitting from move mode
                 return chem.get_smiles(state.mol)
             # Ignore all other keys in move mode
-            continue
+            need_redraw = False
 
         # Special handling for selection mode
         elif mode == Mode.SELECT:
@@ -331,19 +330,17 @@ def main_loop(stdscr, initial_smiles=None):
                 mode = Mode.NORMAL
                 selection_anchor_x = None
                 selection_anchor_y = None
-                need_redraw = True
             elif key == '\x1b':  # Escape
                 # Cancel selection
                 mode = Mode.NORMAL
                 selection_anchor_x = None
                 selection_anchor_y = None
-                need_redraw = True
             elif key == 'q':
                 # Allow quitting from selection mode
                 return chem.get_smiles(state.mol)
             else:
                 # Ignore all other keys in selection mode
-                continue
+                need_redraw = False
 
         # Snap to nearest atom
         elif key == ' ':
@@ -363,7 +360,6 @@ def main_loop(stdscr, initial_smiles=None):
                         state.y_offset)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
-                    need_redraw = True
 
         # Special handling for bond mode
         elif mode == Mode.BOND:
@@ -391,7 +387,6 @@ def main_loop(stdscr, initial_smiles=None):
                 mode = Mode.NORMAL
                 bond_start_atom_idx = None
                 bond_new_atom_idx = None
-                need_redraw = True
             elif key == '\x1b':  # Escape - cancel bond
                 # Delete new atom and exit bond mode (no undo entry)
                 if bond_new_atom_idx is not None:
@@ -399,7 +394,6 @@ def main_loop(stdscr, initial_smiles=None):
                 mode = Mode.NORMAL
                 bond_start_atom_idx = None
                 bond_new_atom_idx = None
-                need_redraw = True
             elif key == 'q':
                 # Allow quitting from bond mode (clean up first)
                 if bond_new_atom_idx is not None:
@@ -407,12 +401,11 @@ def main_loop(stdscr, initial_smiles=None):
                 return chem.get_smiles(state.mol)
             else:
                 # Ignore all other keys in bond mode
-                continue
+                need_redraw = False
 
         # Enter move mode
         elif key == 'm':
             mode = Mode.MOVE
-            need_redraw = True
 
         # Enter bond mode
         elif key == 'b':
@@ -437,7 +430,6 @@ def main_loop(stdscr, initial_smiles=None):
 
                 # Enter bond mode
                 mode = Mode.BOND
-                need_redraw = True
 
         # Enter SMILES string
         elif key == 's':
@@ -446,13 +438,9 @@ def main_loop(stdscr, initial_smiles=None):
                 state = result
                 history.push(state)
 
-            # Always redraw to clear the prompt
-            need_redraw = True
-
         # Toggle SMILES display
         elif key == 'S':
             show_smiles = not show_smiles
-            need_redraw = True
 
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
@@ -463,9 +451,6 @@ def main_loop(stdscr, initial_smiles=None):
                 state.mol = result
                 history.push(state)
 
-            # Always redraw to clear the prompt
-            need_redraw = True
-
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
             symbol = key.upper()
@@ -474,7 +459,6 @@ def main_loop(stdscr, initial_smiles=None):
             if result is not None:
                 state.mol = result
                 history.push(state)
-                need_redraw = True
 
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
@@ -484,28 +468,22 @@ def main_loop(stdscr, initial_smiles=None):
                 state = result
                 history.push(state)
 
-            # Always redraw to clear the prompt
-            need_redraw = True
-
         # Delete atom or bond at cursor position
         elif key == 'x':
             if edit.delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
                 history.push(state)
-                need_redraw = True
 
         # Delete fragment (all atoms connected to cursor atom)
         elif key == 'D':
             if edit.delete_fragment_at_cursor(state, cursor_x, cursor_y,
                                               screen_dims):
                 history.push(state)
-                need_redraw = True
 
         # Enter area delete (selection) mode
         elif key == 'X':
             mode = Mode.SELECT
             selection_anchor_x = cursor_x
             selection_anchor_y = cursor_y
-            need_redraw = True
 
         # Adjust formal charge
         elif key in '+-':
@@ -513,19 +491,16 @@ def main_loop(stdscr, initial_smiles=None):
             if edit.adjust_formal_charge(state, cursor_x, cursor_y, screen_dims,
                                          dq):
                 history.push(state)
-                need_redraw = True
 
         # Cleanup/regenerate coordinates (Ctrl-L)
         elif key == '\x0c':  # Ctrl-L
             if edit.cleanup_coordinates(state, screen_dims):
                 history.push(state)
-                need_redraw = True
 
         # Zoom
         elif key in '<>':
             zoom = ZOOM_STEP if key == '>' else 1.0 / ZOOM_STEP
             zoom_view(state, screen_dims, zoom)
-            need_redraw = True
 
         # Add/modify/delete bond
         elif key in ['1', '2', '3']:
@@ -533,7 +508,6 @@ def main_loop(stdscr, initial_smiles=None):
             if edit.create_or_adjust_bond(state, cursor_x, cursor_y,
                                           screen_dims, bond_order):
                 history.push(state)
-                need_redraw = True
 
         # Add/modify wedge bond (single bond with up stereochemistry)
         elif key == 'w':
@@ -541,7 +515,6 @@ def main_loop(stdscr, initial_smiles=None):
                                           screen_dims, 1,
                                           Chem.BondDir.BEGINWEDGE):
                 history.push(state)
-                need_redraw = True
 
         # Add/modify dash bond (single bond with down stereochemistry)
         elif key == 'd':
@@ -549,34 +522,33 @@ def main_loop(stdscr, initial_smiles=None):
                                           screen_dims, 1,
                                           Chem.BondDir.BEGINDASH):
                 history.push(state)
-                need_redraw = True
 
         # Clear canvas (reset to blank slate)
         elif key == '@':
             clear_canvas(state, screen_dims)
             history.push(state)
-            need_redraw = True
 
         # Undo
         elif key == 'u':
             if history.undo():
                 state = history.state
-                need_redraw = True
 
         # Redo
         elif key in 'r\x12':  # Also support Ctrl-R for vim muscle memory
             if history.redo():
                 state = history.state
-                need_redraw = True
 
         # Help
         elif key == '?':
             ui.show_help(stdscr, screen_dims)
-            need_redraw = True
 
         # Quit
         elif key == 'q':
             return chem.get_smiles(state.mol)
+
+        else:
+            # Ignore unknown keys
+            need_redraw = False
 
 
 def run(initial_smiles):
