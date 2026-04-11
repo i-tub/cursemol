@@ -33,7 +33,6 @@ __version__ = "4.1.0"
 import argparse
 import atexit
 import curses
-from dataclasses import dataclass
 from enum import Enum
 import io
 import logging
@@ -41,11 +40,13 @@ import os
 import sys
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
 
 from . import canvas
 from . import chem
 from . import edit
+from .state import ScreenDimensions
+from .state import State
+from .state import UndoHistory
 
 rdkit_logger = logging.getLogger('rdkit')
 
@@ -96,66 +97,6 @@ ARROW_KEY_MAP = {
 }
 
 
-@dataclass
-class State:
-    """Molecular drawing state: molecule and its display parameters."""
-    mol: Chem.RWMol
-    box: tuple  # ((min_x, min_y, min_z), (max_x, max_y, max_z))
-    scale: tuple  # (xscale, yscale)
-    y_offset: int
-
-    def copy(self):
-        """Create deep copy for undo/redo."""
-        return State(mol=Chem.RWMol(self.mol),
-                     box=self.box,
-                     scale=self.scale,
-                     y_offset=self.y_offset)
-
-
-@dataclass
-class ScreenDimensions:
-    """Terminal screen dimensions and derived values."""
-    max_x: int
-    max_y: int
-
-    @property
-    def rows(self):
-        """Drawable rows (excluding instruction lines)."""
-        return self.max_y - INSTRUCTION_LINES
-
-
-class UndoHistory:
-    """Manages undo/redo history for molecule editing."""
-
-    def __init__(self, state):
-        self.state = state
-        self._history = [state.copy()]
-        self._index = 0
-
-    def undo(self):
-        """Move back in history. Returns True if successful."""
-        if self._index > 0:
-            self._index -= 1
-            self.state = self._history[self._index].copy()
-            return True
-        return False
-
-    def redo(self):
-        """Move forward in history. Returns True if successful."""
-        if self._index < len(self._history) - 1:
-            self._index += 1
-            self.state = self._history[self._index].copy()
-            return True
-        return False
-
-    def push(self, state):
-        """Truncate future history and save current state."""
-        self.state = state
-        self._history = self._history[:self._index + 1]
-        self._history.append(self.state.copy())
-        self._index = len(self._history) - 1
-
-
 def prompt_user_input(stdscr, max_y, prompt_text):
     """Display prompt and get user input. Returns empty string on error."""
     stdscr.addstr(max_y - 1, 0, prompt_text)
@@ -181,55 +122,6 @@ def enter_smiles(stdscr, max_y):
 def enter_element(stdscr, max_y):
     """Prompt user to enter an element symbol and return it."""
     return prompt_user_input(stdscr, max_y, "Element symbol: ")
-
-
-def recalculate_box_and_offset(mol, scale, screen_dims):
-    """
-    Recalculate box and y_offset for a molecule at a given scale.
-    Centers the view on the molecule's actual bounding box.
-    Returns (box, y_offset).
-    """
-    conf = mol.GetConformer(0)
-    actual_box = chem.get_box(conf)
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
-
-    # Calculate center of molecule
-    center_x = (xmin + xmax) / 2
-    center_y = (ymin + ymax) / 2
-
-    # Calculate box dimensions that fill the screen at this scale
-    screen_width = screen_dims.max_x - 2 * PADDING
-    screen_height = screen_dims.rows - 2 * PADDING
-    mol_width = screen_width / scale[0]
-    mol_height = screen_height / scale[1]
-
-    # Create box centered on molecule center
-    box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-           (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
-
-    # Calculate vertical offset to center the displayed content
-    mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
-    y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
-
-    return box, y_offset
-
-
-def calculate_box_and_scale(mol, max_x, max_y):
-    """Calculate bounding box and scale for a molecule, centered on screen."""
-    conf = mol.GetConformer(0)
-    actual_box = chem.get_box(conf)
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
-
-    # Calculate scale to fit the molecule
-    xscale = min((max_x - PADDING * 2) / (xmax - xmin), DEFAULT_SCALE)
-    yscale = xscale * ASPECT_RATIO
-    scale = (xscale, yscale)
-
-    # Recalculate box and offset at this scale
-    screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
-    box, y_offset = recalculate_box_and_offset(mol, scale, screen_dims)
-
-    return box, scale, y_offset
 
 
 def render_screen_buffer(stdscr, screen, screen_colors):
@@ -275,52 +167,6 @@ def draw_mol(stdscr, state, screen_dims):
     render_screen_buffer(stdscr, screen, screen_colors)
 
 
-def create_empty_state(screen_dims):
-    """
-    Create an empty molecular state with default settings.
-    Returns State object.
-    """
-    # Create empty molecule
-    mol = Chem.RWMol()
-    conf = Chem.Conformer()
-    mol.AddConformer(conf)
-
-    # Default box: 20 angstroms centered at origin
-    box_size = 10.0
-    box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
-
-    # Use default scale
-    xscale = DEFAULT_SCALE
-    yscale = xscale * ASPECT_RATIO
-    scale = (xscale, yscale)
-
-    # Center vertically
-    mol_height = int(2 * box_size * yscale + 2 * PADDING)
-    y_offset = max(0, (screen_dims.rows - mol_height) // 2)
-
-    return State(mol=mol, box=box, scale=scale, y_offset=y_offset)
-
-
-def create_molecule_from_smiles(smiles, screen_dims):
-    """
-    Create molecule from SMILES string with 2D coordinates.
-    Returns (state, error_message); in case of error, state will be None.
-    """
-    with chem.CaptureRDKitLog() as log:
-        m = Chem.MolFromSmiles(smiles)
-
-    if m is None:
-        return None, 'Invalid SMILES\n' + log.getMessage()
-
-    Chem.Kekulize(m, True)
-    mol = Chem.RWMol(m)
-    AllChem.Compute2DCoords(mol)
-    Chem.WedgeMolBonds(mol, mol.GetConformer())
-    box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x,
-                                                   screen_dims.max_y)
-    return State(mol=mol, box=box, scale=scale, y_offset=y_offset), ""
-
-
 def load_smiles(stdscr, screen_dims):
     """
     Prompt user for SMILES string and create molecule from it.
@@ -329,7 +175,7 @@ def load_smiles(stdscr, screen_dims):
     """
     smiles = enter_smiles(stdscr, screen_dims.max_y)
     if smiles:
-        state, msg = create_molecule_from_smiles(smiles, screen_dims)
+        state, msg = State.fromSmiles(smiles, screen_dims)
         # Return (state, error_message) - error if state is None
         if state is None:
             return (None, msg)
@@ -343,7 +189,7 @@ def clear_canvas(state, screen_dims):
     Clear the canvas and reset to blank slate with default settings.
     Modifies state in place.
     """
-    empty = create_empty_state(screen_dims)
+    empty = State.createEmpty(screen_dims)
     state.mol = empty.mol
     state.box = empty.box
     state.scale = empty.scale
@@ -481,8 +327,8 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         chem.compute_coords_with_fixed_atoms(state.mol, start_idx)
 
         # Update box to show all atoms while keeping same scale
-        box, y_offset = recalculate_box_and_offset(state.mol, state.scale,
-                                                   screen_dims)
+        box, y_offset = canvas.recalculate_box_and_offset(
+            state.mol, state.scale, screen_dims)
 
         return State(mol=state.mol,
                      box=box,
@@ -646,14 +492,13 @@ def main_loop(stdscr, initial_smiles=None):
 
     # Load initial molecule if provided
     if initial_smiles:
-        state, error_message = create_molecule_from_smiles(
-            initial_smiles, screen_dims)
+        state, error_message = State.fromSmiles(initial_smiles, screen_dims)
         if state is None:
             # Failed to parse SMILES, create empty state
-            state = create_empty_state(screen_dims)
+            state = State.createEmpty(screen_dims)
     else:
         # Create empty state
-        state = create_empty_state(screen_dims)
+        state = State.createEmpty(screen_dims)
 
     # Undo/redo history
     history = UndoHistory(state)
@@ -700,7 +545,7 @@ def main_loop(stdscr, initial_smiles=None):
             max_y, max_x = stdscr.getmaxyx()
             screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
             # Recalculate molecule position for new screen size
-            state.box, state.y_offset = recalculate_box_and_offset(
+            state.box, state.y_offset = canvas.recalculate_box_and_offset(
                 state.mol, state.scale, screen_dims)
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, screen_dims.max_x - 1)

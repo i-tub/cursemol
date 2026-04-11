@@ -142,6 +142,16 @@ def get_smiles(mol):
     return Chem.MolToSmiles(mol_for_smiles)
 
 
+def get_mol(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is not None:
+        Chem.Kekulize(mol, True)
+        mol = Chem.RWMol(mol)
+        AllChem.Compute2DCoords(mol)
+        Chem.WedgeMolBonds(mol, mol.GetConformer())
+    return mol
+
+
 def compute_coords_with_fixed_atoms(mol, num_fixed_atoms):
     """
     Compute 2D coordinates for a molecule, keeping existing atoms fixed.
