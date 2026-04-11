@@ -9,11 +9,7 @@ from enum import Enum
 from rdkit import Chem
 
 from . import chem
-
-DEFAULT_SCALE = 8.0  # columns per angstrom
-ASPECT_RATIO = 0.4  # horizontal / vertical
-PADDING = 5
-INSTRUCTION_LINES = 2
+from . import config
 
 
 class Mode(Enum):
@@ -48,12 +44,12 @@ class State:
         box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
 
         # Use default scale
-        xscale = DEFAULT_SCALE
-        yscale = xscale * ASPECT_RATIO
+        xscale = config.DEFAULT_SCALE
+        yscale = xscale * config.ASPECT_RATIO
         scale = (xscale, yscale)
 
         # Center vertically
-        mol_height = int(2 * box_size * yscale + 2 * PADDING)
+        mol_height = int(2 * box_size * yscale + 2 * config.PADDING)
         y_offset = max(0, (screen_dims.rows - mol_height) // 2)
 
         return cls(mol=mol, box=box, scale=scale, y_offset=y_offset)
@@ -91,7 +87,7 @@ class ScreenDimensions:
     @property
     def rows(self):
         """Drawable rows (excluding instruction lines)."""
-        return self.max_y - INSTRUCTION_LINES
+        return self.max_y - config.INSTRUCTION_LINES
 
 
 class UndoHistory:
@@ -141,8 +137,8 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
     center_y = (ymin + ymax) / 2
 
     # Calculate box dimensions that fill the screen at this scale
-    screen_width = screen_dims.max_x - 2 * PADDING
-    screen_height = screen_dims.rows - 2 * PADDING
+    screen_width = screen_dims.max_x - 2 * config.PADDING
+    screen_height = screen_dims.rows - 2 * config.PADDING
     mol_width = screen_width / scale[0]
     mol_height = screen_height / scale[1]
 
@@ -151,7 +147,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
            (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
     # Calculate vertical offset to center the displayed content
-    mol_display_height = int(mol_height * scale[1] + 2 * PADDING)
+    mol_display_height = int(mol_height * scale[1] + 2 * config.PADDING)
     y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
 
     return box, y_offset
@@ -164,8 +160,9 @@ def calculate_box_and_scale(mol, max_x, max_y):
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate scale to fit the molecule
-    xscale = min((max_x - PADDING * 2) / (xmax - xmin), DEFAULT_SCALE)
-    yscale = xscale * ASPECT_RATIO
+    xscale = min((max_x - config.PADDING * 2) / (xmax - xmin),
+                 config.DEFAULT_SCALE)
+    yscale = xscale * config.ASPECT_RATIO
     scale = (xscale, yscale)
 
     # Recalculate box and offset at this scale

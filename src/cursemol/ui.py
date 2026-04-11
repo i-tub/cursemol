@@ -6,6 +6,7 @@ import curses
 import logging
 
 from . import canvas
+from . import config
 from . import chem
 from .state import Mode
 
@@ -38,28 +39,6 @@ Controls:
   ?                - Show this help
   q                - Quit and print SMILES to stdout
 """
-
-# Instructions (try to keep lines under 80 characters and more or less balanced)
-INSTRUCTIONS = {
-    Mode.NORMAL: [
-        "hjkl: move | HJKL: fast | SPC: snap | m: move mol | s/S: SMILES | i/a/c/n/o: ins",
-        "x/X/D: del | +/-: chg | <>: zoom | u/r: undo | ^L: clean | b/123/wd: bond | ?: help"
-    ],
-    Mode.MOVE: [
-        "[Move molecule mode]",
-        "hjkl/HJKL: move molecule | Esc/Enter: leave move mode | q: quit"
-    ],
-    Mode.SELECT: [
-        "[Area delete mode]",
-        "hjkl: move | HJKL: fast | Enter/x: delete | Esc: cancel | q: quit"
-    ],
-    Mode.BOND: [
-        "[Add bond mode]", "hjkl/HJKL/SPC: move | Enter: accept | Esc: cancel"
-    ]
-}
-
-# Number of instruction lines to reserve at the bottom of the screen.
-INSTRUCTION_LINES = max(len(v) for v in INSTRUCTIONS.values())
 
 
 def init_curses(stdscr):
@@ -159,11 +138,11 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
 
 def draw_instructions(stdscr, screen_dims, mode):
     """Draw instructions at the bottom of the screen."""
-    instructions = INSTRUCTIONS[mode]
+    instructions = config.INSTRUCTIONS[mode.value]
 
     for i, line in enumerate(instructions):
         try:
-            stdscr.addstr(screen_dims.max_y - INSTRUCTION_LINES + i, 0,
+            stdscr.addstr(screen_dims.max_y - config.INSTRUCTION_LINES + i, 0,
                           line[:screen_dims.max_x - 1])
         except curses.error:
             pass

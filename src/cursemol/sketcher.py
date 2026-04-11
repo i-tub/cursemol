@@ -9,6 +9,7 @@ import logging
 from rdkit import Chem
 
 from . import canvas
+from . import config
 from . import chem
 from . import edit
 from . import ui
@@ -17,13 +18,6 @@ from .state import ScreenDimensions
 from .state import State
 from .state import UndoHistory
 from .state import recalculate_box_and_offset
-
-MIN_SCALE = 2.0  # columns per angstrom
-DEFAULT_SCALE = 8.0  # columns per angstrom
-MAX_SCALE = 16.0  # columns per angstrom
-ASPECT_RATIO = 0.4  # horizontal / vertical
-PADDING = 5
-ZOOM_STEP = 1.2
 
 # Training wheels for those who haven't converted to vi. :-)
 ARROW_KEY_MAP = {
@@ -95,13 +89,13 @@ def zoom_view(state, screen_dims, zoom_factor):
 
     # Adjust scale by zoom factor and clamp to limits
     xscale = state.scale[0] * zoom_factor
-    xscale = max(MIN_SCALE, min(MAX_SCALE, xscale))
-    yscale = xscale * ASPECT_RATIO
+    xscale = max(config.MIN_SCALE, min(config.MAX_SCALE, xscale))
+    yscale = xscale * config.ASPECT_RATIO
     state.scale = (xscale, yscale)
 
     # Calculate new box dimensions to show at new scale
-    screen_width = screen_dims.max_x - 2 * PADDING
-    screen_height = screen_dims.rows - 2 * PADDING
+    screen_width = screen_dims.max_x - 2 * config.PADDING
+    screen_height = screen_dims.rows - 2 * config.PADDING
 
     # Molecule coordinate range that fits on screen at new scale
     mol_width = screen_width / xscale
@@ -112,7 +106,7 @@ def zoom_view(state, screen_dims, zoom_factor):
                  (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
     # Recalculate y_offset for new scale
-    mol_display_height = int(mol_height * yscale + 2 * PADDING)
+    mol_display_height = int(mol_height * yscale + 2 * config.PADDING)
     state.y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
 
 
@@ -272,7 +266,8 @@ def main_loop(stdscr, initial_smiles=None):
         if key in 'hjklHJKL':
             # Determine delta (1 for hjkl, 10 for HJKL)
             delta = 10 if key.isupper() else 1
-            delta_y = int(delta * ASPECT_RATIO) if key.isupper() else delta
+            delta_y = int(delta *
+                          config.ASPECT_RATIO) if key.isupper() else delta
 
             key_lower = key.lower()
 
@@ -499,7 +494,7 @@ def main_loop(stdscr, initial_smiles=None):
 
         # Zoom
         elif key in '<>':
-            zoom = ZOOM_STEP if key == '>' else 1.0 / ZOOM_STEP
+            zoom = config.ZOOM_STEP if key == '>' else 1.0 / config.ZOOM_STEP
             zoom_view(state, screen_dims, zoom)
 
         # Add/modify/delete bond

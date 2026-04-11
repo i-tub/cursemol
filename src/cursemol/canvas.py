@@ -9,38 +9,13 @@ This module does not use curses.
 import logging
 import math
 
-from rdkit import Chem
-
-PADDING = 5
-
-BOND_CHARS = {
-    Chem.BondType.SINGLE: '·',
-    Chem.BondType.DOUBLE: '=',
-    Chem.BondType.TRIPLE: '#',
-}
-
-BOND_DIR_CHARS = {
-    Chem.BondDir.BEGINWEDGE: '•',
-    Chem.BondDir.BEGINDASH: '◦',
-}
-
-# Color mapping for elements
-ELEMENT_COLORS = {
-    'O': 1,  # Red
-    'N': 2,  # Blue
-    'S': 3,  # Yellow
-    'P': 3,  # Yellow
-    'F': 4,  # Green
-    'Cl': 4,  # Green
-    'Br': 4,  # Green
-    'I': 4,  # Green
-}
+from . import config
 
 
 def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from screen_coords_for_atom
-    mol_x = (cursor_x - PADDING) / scale[0] + box[0][0]
+    mol_x = (cursor_x - config.PADDING) / scale[0] + box[0][0]
     mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset,
                               screen_dims.rows)
 
@@ -54,7 +29,7 @@ def screen_y_to_mol_y(screen_y, box_min_y, scale_y, y_offset, rows):
     Reverses the Y-axis flip: terminal Y points down but molecular Y points up.
     """
     y_from_bottom = rows - 1 - screen_y
-    return (y_from_bottom - PADDING - y_offset) / scale_y + box_min_y
+    return (y_from_bottom - config.PADDING - y_offset) / scale_y + box_min_y
 
 
 def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
@@ -65,14 +40,15 @@ def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
     but molecular coordinates point up (higher Y = higher position).
     Therefore higher molecular Y -> lower screen Y (closer to top).
     """
-    y_from_bottom = PADDING + y_offset + int((mol_y - box_min_y) * scale_y)
+    y_from_bottom = config.PADDING + y_offset + int(
+        (mol_y - box_min_y) * scale_y)
     return rows - 1 - y_from_bottom
 
 
 def screen_coords_for_atom(atom, state, conf, rows):
     """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
-    x = PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
+    x = config.PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
     y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1],
                           state.y_offset, rows)
     return x, y
@@ -274,7 +250,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
         conf: RDKit conformer object
     """
     sym = atom.GetSymbol()
-    color = ELEMENT_COLORS.get(sym, 0)  # Get color for this element
+    color = config.ELEMENT_COLORS.get(sym, 0)  # Get color for this element
     # Make all symbols bold except C
     is_bold = sym != 'C'
 
@@ -304,7 +280,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
 
             for neighbor in neighbors:
                 neighbor_pos = conf.GetAtomPosition(neighbor.GetIdx())
-                neighbor_x = PADDING + int(
+                neighbor_x = config.PADDING + int(
                     (neighbor_pos.x - state.box[0][0]) * state.scale[0])
                 if neighbor_x < x:
                     has_neighbor_on_left = True
@@ -370,8 +346,9 @@ def fill_screen_buffer(state, screen_dims):
             x2, y2 = screen_coords_for_atom(bond.GetEndAtom(), state, conf,
                                             rows)
             # Only draw if bond type is in our dictionary
-            if bond_char := BOND_CHARS.get(bond.GetBondType()):
-                bond_dir_char = BOND_DIR_CHARS.get(bond.GetBondDir(), bond_char)
+            if bond_char := config.BOND_CHARS.get(bond.GetBondType()):
+                bond_dir_char = config.BOND_DIR_CHARS.get(
+                    bond.GetBondDir(), bond_char)
                 draw_line(screen, bond_char, bond_dir_char, x1, y1, x2, y2)
     except Exception:
         logging.exception("Error drawing bonds")
