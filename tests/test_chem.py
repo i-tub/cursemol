@@ -108,3 +108,46 @@ def test_modify_bond_dir():
     assert mol.GetBondWithIdx(0).GetBondDir() == Chem.BondDir.NONE
     assert mol.GetBondWithIdx(0).GetBeginAtomIdx() == 1
     assert mol.GetBondWithIdx(0).GetEndAtomIdx() == 0
+
+
+def test_get_mol():
+    mol = chem.get_mol('c1ccccc1[C@H](O)C')
+
+    # Check for "hard Keukulization".
+    bond_types = {b.GetBondType() for b in mol.GetBonds()}
+    assert bond_types == {Chem.BondType.SINGLE, Chem.BondType.DOUBLE}
+
+    # We should have one dash or wedge, but which one depends on RDKit
+    # coordinate generation, so we'll accept either.
+    bond_dirs = {b.GetBondDir() for b in mol.GetBonds()}
+    assert bond_dirs & {Chem.BondDir.BEGINDASH, Chem.BondDir.BEGINWEDGE}
+
+    # Atoms should have nonzero coordinates (*one* atom might be at origin)
+    coords = mol.GetConformer(0).GetPositions()
+    assert np.all(coords == 0, axis=1).sum() <= 1
+
+
+def test_get_smiles():
+    mol = chem.get_mol('CC=CC')
+
+    # Here will assume that RDKit will depict the double bond as trans, even
+    # though the stereo is unspecified. We currently don't support unspecified
+    # configuration at double bonds, so this is expected to become an explicit
+    # trans in the output SMILES.
+    assert chem.get_smiles(mol) == 'C/C=C/C'
+
+
+def test_compute_coords_with_fixed_atoms():
+    mol = chem.get_mol('CCO')
+    old_coords = mol.GetConformer(0).GetPositions()
+
+    mol.AddAtom(Chem.Atom(6))
+    mol.AddAtom(Chem.Atom(6))
+    mol.AddBond(2, 3, Chem.BondType.SINGLE)
+    mol.AddBond(3, 4, Chem.BondType.SINGLE)
+
+    chem.compute_coords_with_fixed_atoms(mol, 2)
+    new_coords = mol.GetConformer(0).GetPositions()
+
+    assert (new_coords[:3, :] == old_coords).all()
+    assert np.all(new_coords == 0, axis=1).sum() <= 1
