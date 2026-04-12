@@ -1,5 +1,5 @@
 """
-Functions that "draw" molecules to a an abstract canvas, that is a 3D array of
+Functions that "draw" molecules to a an abstract canvas, that is, a 2D array of
 characters. Also, helper functions for converting between real atom coordinates
 and canvas coordinates.
 
