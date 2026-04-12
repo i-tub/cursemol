@@ -2,6 +2,8 @@
 Functions related to the underlying chemistry model (RDKit).
 """
 
+from __future__ import annotations
+
 import io
 import re
 import logging
@@ -9,6 +11,7 @@ import logging
 from rdkit import Chem
 from rdkit import Geometry
 from rdkit.Chem import AllChem
+import numpy as np
 
 rdkit_logger = logging.getLogger('rdkit')
 
@@ -18,20 +21,20 @@ class CaptureRDKitLog:
     Context manager to capture RDKit log messages.
     """
 
-    def __enter__(self):
+    def __enter__(self) -> 'CaptureRDKitLog':
         self._stream = io.StringIO()
         self._old_stream = rdkit_logger.handlers[0].setStream(self._stream)
         return self
 
-    def __exit__(self, *a):
+    def __exit__(self, *a) -> None:
         rdkit_logger.handlers[0].setStream(self._old_stream)
 
-    def getMessage(self):
+    def getMessage(self) -> str:
         """Return log messages after stripping them of timestamps"""
         return re.sub(r'\[..:..:..] ', '', self._stream.getvalue())
 
 
-def get_box(mol):
+def get_box(mol: Chem.Mol) -> tuple[np.ndarray, np.ndarray]:
     """
     Return the bounding box for the molecule.
     """
@@ -40,7 +43,7 @@ def get_box(mol):
     return (xyz.min(axis=0), xyz.max(axis=0))
 
 
-def reverse_bond(bond):
+def reverse_bond(bond: Chem.Bond) -> None:
     """
     Reverse bond by deleting and re-adding with swapped atoms.
     """
@@ -55,7 +58,11 @@ def reverse_bond(bond):
     bond.SetBondDir(bond_dir)
 
 
-def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
+def modify_bond(mol: Chem.RWMol,
+                atom1_idx: int,
+                atom2_idx: int,
+                bond_order: int,
+                bond_dir: Chem.BondDir | None = None) -> bool:
     """
     Modify or create a bond between two atoms.
     bond_order: 0 (delete), 1 (single), 2 (double), 3 (triple)
@@ -113,7 +120,7 @@ def modify_bond(mol, atom1_idx, atom2_idx, bond_order, bond_dir=None):
     return True
 
 
-def assign_stereo(mol):
+def assign_stereo(mol: Chem.RWMol) -> None:
     """
     Assign stereochemical state to the molecule based on its geometry and bond
     directions (wedges/dashes).
@@ -128,7 +135,7 @@ def assign_stereo(mol):
     Chem.AssignStereochemistry(mol, force=True)
 
 
-def get_smiles(mol):
+def get_smiles(mol: Chem.Mol) -> str:
     """
     Generate a SMILES deriving the stereochemical configuration from atomic
     coordinates and bond directions.
@@ -157,7 +164,8 @@ def get_mol(smiles: str) -> Chem.RWMol | None:
     return mol
 
 
-def compute_coords_with_fixed_atoms(mol, num_fixed_atoms):
+def compute_coords_with_fixed_atoms(mol: Chem.RWMol,
+                                    num_fixed_atoms: int) -> None:
     """
     Compute 2D coordinates for a molecule, keeping existing atoms fixed.
 

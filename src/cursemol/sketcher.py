@@ -3,6 +3,8 @@ Implementation of the sketcher widget. Main loop and functions implementing
 various commands.
 """
 
+from __future__ import annotations
+
 import curses
 import logging
 
@@ -28,7 +30,8 @@ ARROW_KEY_MAP = {
 }
 
 
-def load_smiles(stdscr, screen_dims):
+def load_smiles(stdscr: curses.window,
+                screen_dims: ScreenDimensions) -> tuple[State | None, str]:
     """
     Prompt user for SMILES string and create molecule from it.
     Returns tuple: (State object or None, error_message string)
@@ -45,7 +48,9 @@ def load_smiles(stdscr, screen_dims):
     return (None, "")
 
 
-def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
+def append_smiles_fragment(
+        stdscr: curses.window, state: State, cursor_x: int, cursor_y: int,
+        screen_dims: ScreenDimensions) -> tuple[State | None, str]:
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under
     cursor.
@@ -106,7 +111,7 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         return None, str(e)
 
 
-def main_loop(stdscr, initial_smiles=None):
+def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
     ui.init_curses(stdscr)
 
     # Get screen dimensions
@@ -475,5 +480,5 @@ def main_loop(stdscr, initial_smiles=None):
             need_redraw = False
 
 
-def run(initial_smiles):
+def run(initial_smiles: str | None) -> str:
     return curses.wrapper(main_loop, initial_smiles)

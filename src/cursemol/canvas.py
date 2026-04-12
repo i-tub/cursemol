@@ -6,13 +6,23 @@ and canvas coordinates.
 This module does not use curses.
 """
 
+from __future__ import annotations
+
 import logging
 import math
+from typing import Iterator
+
+from rdkit import Chem
 
 from . import config
+from .state import State, ScreenDimensions
 
 
-def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims):
+def screen_to_mol_coords(cursor_x: int, cursor_y: int,
+                         box: tuple[tuple[float, float, float],
+                                    tuple[float, float,
+                                          float]], scale: tuple[float, float],
+                         screen_dims: ScreenDimensions) -> tuple[float, float]:
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from screen_coords_for_atom
     mol_x = (cursor_x - config.PADDING) / scale[0] + box[0][0]
@@ -21,7 +31,8 @@ def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims):
     return mol_x, mol_y
 
 
-def screen_y_to_mol_y(screen_y, box_min_y, scale_y, rows):
+def screen_y_to_mol_y(screen_y: int, box_min_y: float, scale_y: float,
+                      rows: int) -> float:
     """
     Convert screen Y coordinate to molecular Y coordinate.
 
@@ -31,7 +42,8 @@ def screen_y_to_mol_y(screen_y, box_min_y, scale_y, rows):
     return (y_from_bottom - config.PADDING) / scale_y + box_min_y
 
 
-def mol_y_to_screen_y(mol_y, box_min_y, scale_y, rows):
+def mol_y_to_screen_y(mol_y: float, box_min_y: float, scale_y: float,
+                      rows: int) -> int:
     """
     Convert molecular Y coordinate to screen Y coordinate.
 
@@ -43,7 +55,7 @@ def mol_y_to_screen_y(mol_y, box_min_y, scale_y, rows):
     return rows - 1 - y_from_bottom
 
 
-def shift_view(state, dx, dy):
+def shift_view(state: State, dx: float, dy: float) -> None:
     """
     Shift the view (pan the molecule) by the given (dx, dy), in screen units.
     """
@@ -56,7 +68,8 @@ def shift_view(state, dx, dy):
     state.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
 
 
-def zoom_view(state, screen_dims, zoom_factor):
+def zoom_view(state: State, screen_dims: ScreenDimensions,
+              zoom_factor: float) -> None:
     """
     Zoom in or out by the given factor.
     zoom_factor > 1 means zoom in, < 1 means zoom out.
@@ -88,7 +101,8 @@ def zoom_view(state, screen_dims, zoom_factor):
                  (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
 
-def screen_coords_for_atom(atom, state, conf, rows):
+def screen_coords_for_atom(atom: Chem.Atom, state: State, conf: Chem.Conformer,
+                           rows: int) -> tuple[int, int]:
     """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = config.PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
@@ -96,12 +110,15 @@ def screen_coords_for_atom(atom, state, conf, rows):
     return x, y
 
 
-def normalize_rect(x1, y1, x2, y2):
+def normalize_rect(x1: int, y1: int, x2: int,
+                   y2: int) -> tuple[int, int, int, int]:
     """Normalize rectangle coordinates to (min_x, min_y, max_x, max_y)."""
     return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
 
 
-def iter_atom_screen_positions(state, screen_dims):
+def iter_atom_screen_positions(
+        state: State,
+        screen_dims: ScreenDimensions) -> Iterator[tuple[Chem.Atom, int, int]]:
     """Yield (atom, screen_x, screen_y) for each atom in molecule."""
     if state.mol.GetNumAtoms() == 0:
         return
@@ -112,11 +129,12 @@ def iter_atom_screen_positions(state, screen_dims):
         yield atom, x, y
 
 
-def find_nearest_atom(state,
-                      cursor_x,
-                      cursor_y,
-                      screen_dims,
-                      exclude_atom_idx=None):
+def find_nearest_atom(
+        state: State,
+        cursor_x: int,
+        cursor_y: int,
+        screen_dims: ScreenDimensions,
+        exclude_atom_idx: int | None = None) -> tuple[int, int, int] | None:
     """
     Find the atom nearest to the cursor position.
     Returns (atom_index, screen_x, screen_y) or None if no atoms.
@@ -146,7 +164,11 @@ def find_nearest_atom(state,
     return None
 
 
-def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
+def find_atom_at_cursor(state: State,
+                        cursor_x: int,
+                        cursor_y: int,
+                        screen_dims: ScreenDimensions,
+                        tolerance: int = 1) -> int | None:
     """
     Find an atom at or near the cursor position (within tolerance cells).
     Returns atom index or None if no atom found.
@@ -160,7 +182,8 @@ def find_atom_at_cursor(state, cursor_x, cursor_y, screen_dims, tolerance=1):
     return None
 
 
-def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
+def find_bond_atoms(state: State, cursor_x: int, cursor_y: int,
+                    screen_dims: ScreenDimensions) -> tuple[int, int] | None:
     """
     Find the two atoms closest to cursor position such that
     the cursor is roughly between them (angle >= 160 degrees).
@@ -226,7 +249,8 @@ def find_bond_atoms(state, cursor_x, cursor_y, screen_dims):
     return best_pair
 
 
-def draw_line(screen, char, char2, x1, y1, x2, y2):
+def draw_line(screen: list[list[str]], char: str, char2: str, x1: int, y1: int,
+              x2: int, y2: int) -> None:
     """
     Draw a line from (x1, y1) to (x2, y2) using `char` for the first half of the
     line and `char2` for the second half.
@@ -259,7 +283,9 @@ def draw_line(screen, char, char2, x1, y1, x2, y2):
             screen[y][x] = c
 
 
-def draw_string(screen, screen_colors, s, x, y, rows, cols, color, is_bold):
+def draw_string(screen: list[list[str]], screen_colors: list[list[int]], s: str,
+                x: int, y: int, rows: int, cols: int, color: int,
+                is_bold: bool) -> None:
     """
     Draw a string into the screen buffer with the given color and bold flag.
 
@@ -278,7 +304,9 @@ def draw_string(screen, screen_colors, s, x, y, rows, cols, color, is_bold):
             screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
 
 
-def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
+def draw_atom(screen: list[list[str]], screen_colors: list[list[int]],
+              atom: Chem.Atom, x: int, y: int, rows: int, cols: int,
+              state: State, conf: Chem.Conformer) -> None:
     """
     Draw a single atom with its symbol and charge into the screen buffer.
 
@@ -366,7 +394,9 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
                     cols, color, is_bold)
 
 
-def fill_screen_buffer(state, screen_dims):
+def fill_screen_buffer(
+        state: State, screen_dims: ScreenDimensions
+) -> tuple[list[list[str]], list[list[int]]]:
     """
     Fill screen buffer with bonds and atoms.
     Returns (screen, screen_colors) tuple of 2D arrays.

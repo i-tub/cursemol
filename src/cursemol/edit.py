@@ -5,6 +5,8 @@ from the UI.
 This module does not use curses.
 """
 
+from __future__ import annotations
+
 import logging
 import math
 
@@ -13,16 +15,16 @@ from rdkit.Chem import AllChem
 
 from . import canvas
 from . import chem
-from .state import State
+from .state import State, ScreenDimensions
 from .state import recalculate_box_and_offset
 
 
-def create_or_adjust_bond(state,
-                          cursor_x,
-                          cursor_y,
-                          screen_dims,
-                          bond_order,
-                          bond_dir=None):
+def create_or_adjust_bond(state: State,
+                          cursor_x: int,
+                          cursor_y: int,
+                          screen_dims: ScreenDimensions,
+                          bond_order: int,
+                          bond_dir: Chem.BondDir | None = None) -> bool:
     """
     Create or adjust bond between two nearest atoms at cursor position.
     bond_order: 1 (single), 2 (double), or 3 (triple)
@@ -40,7 +42,8 @@ def create_or_adjust_bond(state,
     return False
 
 
-def adjust_formal_charge(state, cursor_x, cursor_y, screen_dims, delta):
+def adjust_formal_charge(state: State, cursor_x: int, cursor_y: int,
+                         screen_dims: ScreenDimensions, delta: int) -> bool:
     """
     Adjust formal charge of atom at cursor position by delta.
     Returns True if charge was adjusted, False if no change or no atom found.
@@ -59,7 +62,8 @@ def adjust_formal_charge(state, cursor_x, cursor_y, screen_dims, delta):
     return False
 
 
-def delete_atoms_in_rect(state, x1, y1, x2, y2, screen_dims):
+def delete_atoms_in_rect(state: State, x1: int, y1: int, x2: int, y2: int,
+                         screen_dims: ScreenDimensions) -> bool:
     """
     Delete all atoms whose screen positions fall within the rectangle.
     Returns True if any atoms were deleted, False otherwise.
@@ -86,7 +90,8 @@ def delete_atoms_in_rect(state, x1, y1, x2, y2, screen_dims):
     return False
 
 
-def delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
+def delete_at_cursor(state: State, cursor_x: int, cursor_y: int,
+                     screen_dims: ScreenDimensions) -> bool:
     """
     Delete atom or bond at cursor position.
     Returns True if something was deleted, False otherwise.
@@ -113,7 +118,8 @@ def delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
     return False
 
 
-def delete_fragment_at_cursor(state, cursor_x, cursor_y, screen_dims):
+def delete_fragment_at_cursor(state: State, cursor_x: int, cursor_y: int,
+                              screen_dims: ScreenDimensions) -> bool:
     """
     Delete all atoms reachable from the atom at cursor position via BFS.
     Returns True if any atoms were deleted, False otherwise.
@@ -153,8 +159,10 @@ def delete_fragment_at_cursor(state, cursor_x, cursor_y, screen_dims):
     return False
 
 
-def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
-                              cursor_x, cursor_y, screen_dims):
+def connect_sidechain_to_bond(state: State, bond_atom_pair: tuple[int, int],
+                              start_idx: int, end_idx: int, cursor_x: int,
+                              cursor_y: int,
+                              screen_dims: ScreenDimensions) -> None:
     """
     Connect a sidechain to a bond by forming a ring.
 
@@ -192,8 +200,9 @@ def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
     state.mol.AddBond(a2_idx, end_idx, Chem.BondType.SINGLE)
 
 
-def insert_or_modify_atom(state, cursor_x, cursor_y, screen_dims,
-                          element_symbol):
+def insert_or_modify_atom(state: State, cursor_x: int, cursor_y: int,
+                          screen_dims: ScreenDimensions,
+                          element_symbol: str) -> Chem.RWMol | None:
     """
     Handle the 'i' command: insert atom at cursor or modify existing atom.
     If element_symbol is provided, use it; otherwise prompt the user.
@@ -233,7 +242,7 @@ def insert_or_modify_atom(state, cursor_x, cursor_y, screen_dims,
     return None
 
 
-def cleanup_coordinates(state, screen_dims):
+def cleanup_coordinates(state: State, screen_dims: ScreenDimensions) -> bool:
     """
     Regenerate 2D coordinates for the molecule and recenter the view.
     Keeps the current zoom level. Returns True if successful.
@@ -258,7 +267,7 @@ def cleanup_coordinates(state, screen_dims):
         return False
 
 
-def clear_canvas(state, screen_dims):
+def clear_canvas(state: State, screen_dims: ScreenDimensions) -> None:
     """
     Clear the canvas and reset to blank slate with default settings.
     Modifies state in place.

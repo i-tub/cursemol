@@ -5,6 +5,8 @@ This module has the main function and helpers for starting up the program; the
 guts of the application are in the `sketcher` module.
 """
 
+from __future__ import annotations
+
 __version__ = "4.2.0"
 
 import argparse
@@ -21,7 +23,7 @@ from . import sketcher
 rdkit_logger = logging.getLogger('rdkit')
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='CurseMol - molecular sketcher for the terminally committed'
     )
@@ -32,13 +34,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_tty():
+def setup_tty() -> int | None:
     """
     If stdin/stdout are not TTYs (e.g., piped input/output), redirect to /dev/tty
     so curses can read keyboard input and display to the terminal.
     Returns the original stdout fd if it was redirected (for final SMILES output).
     """
-    original_stdout_fd = None
+    original_stdout_fd: int | None = None
 
     # Handle stdin
     if not sys.stdin.isatty():
@@ -62,7 +64,7 @@ def setup_tty():
     return original_stdout_fd
 
 
-def main():
+def main() -> None:
     # Set up logging to file (truncate on start)
     logging.basicConfig(
         filename='cursemol.log',

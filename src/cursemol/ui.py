@@ -2,13 +2,15 @@
 Module implementing the curses-specific parts of the UI.
 """
 
+from __future__ import annotations
+
 import curses
 import logging
 
 from . import canvas
 from . import config
 from . import chem
-from .state import Mode
+from .state import Mode, State, ScreenDimensions
 
 HELP_TEXT = """
 CurseMol - Molecular sketcher for the terminally committed
@@ -41,7 +43,7 @@ Controls:
 """
 
 
-def init_curses(stdscr):
+def init_curses(stdscr: curses.window) -> None:
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     curses.use_default_colors()  # Use terminal's default colors
@@ -65,7 +67,8 @@ def init_curses(stdscr):
     stdscr.clear()
 
 
-def render_screen_buffer(stdscr, screen, screen_colors):
+def render_screen_buffer(stdscr: curses.window, screen: list[list[str]],
+                         screen_colors: list[list[int]]) -> None:
     """
     Render a screen buffer to the curses window.
 
@@ -95,7 +98,8 @@ def render_screen_buffer(stdscr, screen, screen_colors):
                 pass
 
 
-def draw_mol(stdscr, state, screen_dims):
+def draw_mol(stdscr: curses.window, state: State,
+             screen_dims: ScreenDimensions) -> None:
     """Draw the molecule using ASCII art."""
     # Nothing to draw if molecule is empty
     if state.mol.GetNumAtoms() == 0:
@@ -108,7 +112,8 @@ def draw_mol(stdscr, state, screen_dims):
     render_screen_buffer(stdscr, screen, screen_colors)
 
 
-def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
+def draw_selection_rect(stdscr: curses.window, x1: int, y1: int, x2: int,
+                        y2: int, screen_dims: ScreenDimensions) -> None:
     """Draw a selection rectangle on the screen."""
     # Normalize coordinates
     min_x, min_y, max_x_rect, max_y_rect = canvas.normalize_rect(x1, y1, x2, y2)
@@ -136,7 +141,8 @@ def draw_selection_rect(stdscr, x1, y1, x2, y2, screen_dims):
         pass
 
 
-def draw_instructions(stdscr, screen_dims, mode):
+def draw_instructions(stdscr: curses.window, screen_dims: ScreenDimensions,
+                      mode: Mode) -> None:
     """Draw instructions at the bottom of the screen."""
     instructions = config.INSTRUCTIONS[mode.value]
 
@@ -148,7 +154,8 @@ def draw_instructions(stdscr, screen_dims, mode):
             pass
 
 
-def draw_error_message(stdscr, screen_dims, error_message):
+def draw_error_message(stdscr: curses.window, screen_dims: ScreenDimensions,
+                       error_message: str) -> None:
     """
     Draw error message at the bottom of the screen.
 
@@ -172,16 +179,16 @@ def draw_error_message(stdscr, screen_dims, error_message):
             pass
 
 
-def redraw_screen(stdscr,
-                  state,
-                  show_smiles,
-                  screen_dims,
-                  mode,
-                  selection_anchor_x=None,
-                  selection_anchor_y=None,
-                  cursor_x=None,
-                  cursor_y=None,
-                  error_message=""):
+def redraw_screen(stdscr: curses.window,
+                  state: State,
+                  show_smiles: bool,
+                  screen_dims: ScreenDimensions,
+                  mode: Mode,
+                  selection_anchor_x: int | None = None,
+                  selection_anchor_y: int | None = None,
+                  cursor_x: int | None = None,
+                  cursor_y: int | None = None,
+                  error_message: str = "") -> None:
     """
     Redraw the entire screen with molecule, SMILES, and optional selection.
 
@@ -218,7 +225,8 @@ def redraw_screen(stdscr,
         draw_instructions(stdscr, screen_dims, mode)
 
 
-def prompt_user_input(stdscr, max_y, prompt_text):
+def prompt_user_input(stdscr: curses.window, max_y: int,
+                      prompt_text: str) -> str:
     """Display prompt and get user input. Returns empty string on error."""
     stdscr.addstr(max_y - 1, 0, prompt_text)
     stdscr.clrtoeol()
@@ -235,17 +243,17 @@ def prompt_user_input(stdscr, max_y, prompt_text):
         curses.noecho()
 
 
-def enter_smiles(stdscr, max_y):
+def enter_smiles(stdscr: curses.window, max_y: int) -> str:
     """Prompt user to enter a SMILES string and return it."""
     return prompt_user_input(stdscr, max_y, "Enter SMILES: ")
 
 
-def enter_element(stdscr, max_y):
+def enter_element(stdscr: curses.window, max_y: int) -> str:
     """Prompt user to enter an element symbol and return it."""
     return prompt_user_input(stdscr, max_y, "Element symbol: ")
 
 
-def show_help(stdscr, screen_dims):
+def show_help(stdscr: curses.window, screen_dims: ScreenDimensions) -> None:
     """
     Display help text and wait for user to press a key.
     """

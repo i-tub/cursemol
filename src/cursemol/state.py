@@ -3,6 +3,8 @@ Classes that represent the current state of the sketcher, as well as the
 undo/redo history.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 
@@ -24,11 +26,13 @@ class Mode(Enum):
 class State:
     """Molecular drawing state: molecule and its display parameters."""
     mol: Chem.RWMol
-    box: tuple  # ((min_x, min_y, min_z), (max_x, max_y, max_z))
-    scale: tuple  # (xscale, yscale)
+    box: tuple[tuple[float, float, float],
+               tuple[float, float,
+                     float]]  # ((min_x, min_y, min_z), (max_x, max_y, max_z))
+    scale: tuple[float, float]  # (xscale, yscale)
 
     @classmethod
-    def createEmpty(cls, screen_dims):
+    def createEmpty(cls, screen_dims: 'ScreenDimensions') -> 'State':
         """
         Create an empty molecular state with default settings.
         Returns State object.
@@ -50,7 +54,9 @@ class State:
         return cls(mol=mol, box=box, scale=scale)
 
     @classmethod
-    def fromSmiles(cls, smiles, screen_dims):
+    def fromSmiles(
+            cls, smiles: str,
+            screen_dims: 'ScreenDimensions') -> tuple['State' | None, str]:
         """
         Create molecule from SMILES string with 2D coordinates.
         Returns (state, error_message); in case of error, state will be None.
@@ -65,7 +71,7 @@ class State:
                                              screen_dims.max_y)
         return cls(mol=mol, box=box, scale=scale), ""
 
-    def copy(self):
+    def copy(self) -> 'State':
         """Create deep copy for undo/redo."""
         return State(mol=Chem.RWMol(self.mol), box=self.box, scale=self.scale)
 
@@ -85,12 +91,12 @@ class ScreenDimensions:
 class UndoHistory:
     """Manages undo/redo history for molecule editing."""
 
-    def __init__(self, state):
+    def __init__(self, state: State) -> None:
         self.state = state
-        self._history = [state.copy()]
-        self._index = 0
+        self._history: list[State] = [state.copy()]
+        self._index: int = 0
 
-    def undo(self):
+    def undo(self) -> bool:
         """Move back in history. Returns True if successful."""
         if self._index > 0:
             self._index -= 1
@@ -98,7 +104,7 @@ class UndoHistory:
             return True
         return False
 
-    def redo(self):
+    def redo(self) -> bool:
         """Move forward in history. Returns True if successful."""
         if self._index < len(self._history) - 1:
             self._index += 1
@@ -106,7 +112,7 @@ class UndoHistory:
             return True
         return False
 
-    def push(self, state):
+    def push(self, state: State) -> None:
         """Truncate future history and save current state."""
         self.state = state
         self._history = self._history[:self._index + 1]
@@ -114,7 +120,9 @@ class UndoHistory:
         self._index = len(self._history) - 1
 
 
-def recalculate_box_and_offset(mol, scale, screen_dims):
+def recalculate_box_and_offset(
+    mol: Chem.Mol, scale: tuple[float, float], screen_dims: ScreenDimensions
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
     """
     Recalculate box for a molecule at a given scale.
     Centers the view on the molecule's actual bounding box.
@@ -140,7 +148,10 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
     return box
 
 
-def calculate_box_and_scale(mol, max_x, max_y):
+def calculate_box_and_scale(
+    mol: Chem.Mol, max_x: int, max_y: int
+) -> tuple[tuple[tuple[float, float, float], tuple[float, float, float]], tuple[
+        float, float]]:
     """Calculate bounding box and scale for a molecule, centered on screen."""
     actual_box = chem.get_box(mol)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
