@@ -45,59 +45,6 @@ def load_smiles(stdscr, screen_dims):
     return (None, "")
 
 
-def shift_view(state, dx_sign, dy_sign):
-    """
-    Shift the view (pan the molecule) by one step in the given direction.
-    dx_sign, dy_sign: -1, 0, or +1 indicating direction.
-    """
-    if state.box is None or state.scale is None:
-        return
-
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
-
-    # Calculate step size based on scale
-    dx = dx_sign / state.scale[0] if dx_sign != 0 else 0
-    dy = dy_sign / state.scale[1] if dy_sign != 0 else 0
-
-    state.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
-
-
-def zoom_view(state, screen_dims, zoom_factor):
-    """
-    Zoom in or out by the given factor.
-    zoom_factor > 1 means zoom in, < 1 means zoom out.
-    """
-    if state.box is None or state.scale is None:
-        return
-
-    # Calculate current center of the box
-    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
-    center_x = (xmin + xmax) / 2
-    center_y = (ymin + ymax) / 2
-
-    # Adjust scale by zoom factor and clamp to limits
-    xscale = state.scale[0] * zoom_factor
-    xscale = max(config.MIN_SCALE, min(config.MAX_SCALE, xscale))
-    yscale = xscale * config.ASPECT_RATIO
-    state.scale = (xscale, yscale)
-
-    # Calculate new box dimensions to show at new scale
-    screen_width = screen_dims.max_x - 2 * config.PADDING
-    screen_height = screen_dims.rows - 2 * config.PADDING
-
-    # Molecule coordinate range that fits on screen at new scale
-    mol_width = screen_width / xscale
-    mol_height = screen_height / yscale
-
-    # New box centered on the same point
-    state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-                 (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
-
-    # Recalculate y_offset for new scale
-    mol_display_height = int(mol_height * yscale + 2 * config.PADDING)
-    state.y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
-
-
 def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under
@@ -262,13 +209,13 @@ def main_loop(stdscr, initial_smiles=None):
             if mode == Mode.MOVE:
                 # In move mode, hjkl translates the molecule
                 if key_lower == 'h':  # shift left
-                    shift_view(state, delta, 0)
+                    canvas.shift_view(state, delta, 0)
                 elif key_lower == 'j':  # shift down
-                    shift_view(state, 0, delta_y)
+                    canvas.shift_view(state, 0, delta_y)
                 elif key_lower == 'k':  # shift up
-                    shift_view(state, 0, -delta_y)
+                    canvas.shift_view(state, 0, -delta_y)
                 elif key_lower == 'l':  # shift right
-                    shift_view(state, -delta, 0)
+                    canvas.shift_view(state, -delta, 0)
             else:
                 # Normal/select/bond mode: move cursor
                 if key_lower == 'h':  # left
@@ -483,7 +430,7 @@ def main_loop(stdscr, initial_smiles=None):
         # Zoom
         elif key in '<>':
             zoom = config.ZOOM_STEP if key == '>' else 1.0 / config.ZOOM_STEP
-            zoom_view(state, screen_dims, zoom)
+            canvas.zoom_view(state, screen_dims, zoom)
 
         # Add/modify/delete bond
         elif key in ['1', '2', '3']:

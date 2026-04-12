@@ -45,6 +45,55 @@ def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
     return rows - 1 - y_from_bottom
 
 
+def shift_view(state, dx, dy):
+    """
+    Shift the view (pan the molecule) by the given (dx, dy), in screen units.
+    """
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
+
+    # Calculate step size based on scale
+    dx = dx / state.scale[0]
+    dy = dy / state.scale[1]
+
+    state.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
+
+
+def zoom_view(state, screen_dims, zoom_factor):
+    """
+    Zoom in or out by the given factor.
+    zoom_factor > 1 means zoom in, < 1 means zoom out.
+    """
+    if state.box is None or state.scale is None:
+        return
+
+    # Calculate current center of the box
+    (xmin, ymin, zmin), (xmax, ymax, zmax) = state.box
+    center_x = (xmin + xmax) / 2
+    center_y = (ymin + ymax) / 2
+
+    # Adjust scale by zoom factor and clamp to limits
+    xscale = state.scale[0] * zoom_factor
+    xscale = max(config.MIN_SCALE, min(config.MAX_SCALE, xscale))
+    yscale = xscale * config.ASPECT_RATIO
+    state.scale = (xscale, yscale)
+
+    # Calculate new box dimensions to show at new scale
+    screen_width = screen_dims.max_x - 2 * config.PADDING
+    screen_height = screen_dims.rows - 2 * config.PADDING
+
+    # Molecule coordinate range that fits on screen at new scale
+    mol_width = screen_width / xscale
+    mol_height = screen_height / yscale
+
+    # New box centered on the same point
+    state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
+                 (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+
+    # Recalculate y_offset for new scale
+    mol_display_height = int(mol_height * yscale + 2 * config.PADDING)
+    state.y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
+
+
 def screen_coords_for_atom(atom, state, conf, rows):
     """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
