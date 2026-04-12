@@ -31,10 +31,11 @@ class CaptureRDKitLog:
         return re.sub(r'\[..:..:..] ', '', self._stream.getvalue())
 
 
-def get_box(conf):
+def get_box(mol):
     """
-    Return the bounding box for a conformer.
+    Return the bounding box for the molecule.
     """
+    conf = mol.GetConformer(0)
     xyz = conf.GetPositions()
     return (xyz.min(axis=0), xyz.max(axis=0))
 
@@ -142,7 +143,11 @@ def get_smiles(mol):
     return Chem.MolToSmiles(mol_for_smiles)
 
 
-def get_mol(smiles):
+def get_mol(smiles: str) -> Chem.RWMol | None:
+    """
+    Create a Mol from a SMILES, in the state expected by the sketcher. This
+    includes kekulization, 2D coordinates, and wedge bonds.
+    """
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
         Chem.Kekulize(mol, True)

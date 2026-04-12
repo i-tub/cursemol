@@ -128,8 +128,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
     Centers the view on the molecule's actual bounding box.
     Returns (box, y_offset).
     """
-    conf = mol.GetConformer(0)
-    actual_box = chem.get_box(conf)
+    actual_box = chem.get_box(mol)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate center of molecule
@@ -155,8 +154,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
 
 def calculate_box_and_scale(mol, max_x, max_y):
     """Calculate bounding box and scale for a molecule, centered on screen."""
-    conf = mol.GetConformer(0)
-    actual_box = chem.get_box(conf)
+    actual_box = chem.get_box(mol)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
 
     # Calculate scale to fit the molecule

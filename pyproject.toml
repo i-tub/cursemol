@@ -39,4 +39,18 @@
     include = [
         "src",
         "demo.gif",
+        "tests",
+    ]
+
+[tool.hatch.build.targets.wheel]
+    packages = ["src/cursemol"]
+
+[tool.pytest.ini_options]
+    testpaths = ["tests"]
+    python_files = "test_*.py"
+    addopts = "--strict-markers"
+
+[dependency-groups]
+    dev = [
+        "pytest>=8.0",
     ]
