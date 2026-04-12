@@ -108,7 +108,7 @@ Key dependencies:
 
 Defined in `state.py`:
 - **State**: Main application state containing the RDKit molecule, scale,
-  box (bounding coordinates), and y_offset
+  and box (bounding coordinates)
 - **UndoHistory**: Manages undo/redo stack by saving/restoring serialized
   molecule states
 - **ScreenDimensions**: Holds screen dimensions (rows, cols, max_y, max_x)

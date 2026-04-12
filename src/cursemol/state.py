@@ -26,7 +26,6 @@ class State:
     mol: Chem.RWMol
     box: tuple  # ((min_x, min_y, min_z), (max_x, max_y, max_z))
     scale: tuple  # (xscale, yscale)
-    y_offset: int
 
     @classmethod
     def createEmpty(cls, screen_dims):
@@ -48,11 +47,7 @@ class State:
         yscale = xscale * config.ASPECT_RATIO
         scale = (xscale, yscale)
 
-        # Center vertically
-        mol_height = int(2 * box_size * yscale + 2 * config.PADDING)
-        y_offset = max(0, (screen_dims.rows - mol_height) // 2)
-
-        return cls(mol=mol, box=box, scale=scale, y_offset=y_offset)
+        return cls(mol=mol, box=box, scale=scale)
 
     @classmethod
     def fromSmiles(cls, smiles, screen_dims):
@@ -66,16 +61,15 @@ class State:
         if mol is None:
             return None, 'Invalid SMILES\n' + log.getMessage()
 
-        box, scale, y_offset = calculate_box_and_scale(mol, screen_dims.max_x,
-                                                       screen_dims.max_y)
-        return cls(mol=mol, box=box, scale=scale, y_offset=y_offset), ""
+        box, scale = calculate_box_and_scale(mol, screen_dims.max_x,
+                                             screen_dims.max_y)
+        return cls(mol=mol, box=box, scale=scale), ""
 
     def copy(self):
         """Create deep copy for undo/redo."""
         return State(mol=Chem.RWMol(self.mol),
                      box=self.box,
-                     scale=self.scale,
-                     y_offset=self.y_offset)
+                     scale=self.scale)
 
 
 @dataclass
@@ -124,9 +118,9 @@ class UndoHistory:
 
 def recalculate_box_and_offset(mol, scale, screen_dims):
     """
-    Recalculate box and y_offset for a molecule at a given scale.
+    Recalculate box for a molecule at a given scale.
     Centers the view on the molecule's actual bounding box.
-    Returns (box, y_offset).
+    Returns box.
     """
     actual_box = chem.get_box(mol)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box
@@ -145,11 +139,7 @@ def recalculate_box_and_offset(mol, scale, screen_dims):
     box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
            (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
-    # Calculate vertical offset to center the displayed content
-    mol_display_height = int(mol_height * scale[1] + 2 * config.PADDING)
-    y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
-
-    return box, y_offset
+    return box
 
 
 def calculate_box_and_scale(mol, max_x, max_y):
@@ -163,8 +153,8 @@ def calculate_box_and_scale(mol, max_x, max_y):
     yscale = xscale * config.ASPECT_RATIO
     scale = (xscale, yscale)
 
-    # Recalculate box and offset at this scale
+    # Recalculate box at this scale
     screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
-    box, y_offset = recalculate_box_and_offset(mol, scale, screen_dims)
+    box = recalculate_box_and_offset(mol, scale, screen_dims)
 
-    return box, scale, y_offset
+    return box, scale

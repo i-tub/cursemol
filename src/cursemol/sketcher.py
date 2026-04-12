@@ -97,13 +97,9 @@ def append_smiles_fragment(stdscr, state, cursor_x, cursor_y, screen_dims):
         chem.compute_coords_with_fixed_atoms(state.mol, start_idx)
 
         # Update box to show all atoms while keeping same scale
-        box, y_offset = recalculate_box_and_offset(state.mol, state.scale,
-                                                   screen_dims)
+        box = recalculate_box_and_offset(state.mol, state.scale, screen_dims)
 
-        return State(mol=state.mol,
-                     box=box,
-                     scale=state.scale,
-                     y_offset=y_offset), ""
+        return State(mol=state.mol, box=box, scale=state.scale), ""
     except Exception as e:
         logging.exception("Error appending atoms (a command)")
         # Error appending atoms
@@ -182,8 +178,8 @@ def main_loop(stdscr, initial_smiles=None):
             max_y, max_x = stdscr.getmaxyx()
             screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
             # Recalculate molecule position for new screen size
-            state.box, state.y_offset = recalculate_box_and_offset(
-                state.mol, state.scale, screen_dims)
+            state.box = recalculate_box_and_offset(state.mol, state.scale,
+                                                    screen_dims)
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, screen_dims.max_x - 1)
             cursor_y = min(cursor_y, screen_dims.rows - 1)
@@ -230,8 +226,7 @@ def main_loop(stdscr, initial_smiles=None):
                 # Update new atom position in bond mode
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = canvas.screen_to_mol_coords(
-                        cursor_x, cursor_y, state.box, state.scale, screen_dims,
-                        state.y_offset)
+                        cursor_x, cursor_y, state.box, state.scale, screen_dims)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -287,8 +282,7 @@ def main_loop(stdscr, initial_smiles=None):
                 # Update new atom position in bond mode
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = canvas.screen_to_mol_coords(
-                        cursor_x, cursor_y, state.box, state.scale, screen_dims,
-                        state.y_offset)
+                        cursor_x, cursor_y, state.box, state.scale, screen_dims)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -350,8 +344,7 @@ def main_loop(stdscr, initial_smiles=None):
 
                 # Set position of new atom
                 mol_x, mol_y = canvas.screen_to_mol_coords(
-                    cursor_x, cursor_y, state.box, state.scale, screen_dims,
-                    state.y_offset)
+                    cursor_x, cursor_y, state.box, state.scale, screen_dims)
                 conf = state.mol.GetConformer()
                 conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 

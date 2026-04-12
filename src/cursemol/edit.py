@@ -175,8 +175,7 @@ def connect_sidechain_to_bond(state, bond_atom_pair, start_idx, end_idx,
     # Determine which atom is closer to cursor
     conf = state.mol.GetConformer()
     mol_x, mol_y = canvas.screen_to_mol_coords(cursor_x, cursor_y, state.box,
-                                               state.scale, screen_dims,
-                                               state.y_offset)
+                                               state.scale, screen_dims)
 
     pos1 = conf.GetAtomPosition(a1_idx)
     pos2 = conf.GetAtomPosition(a2_idx)
@@ -220,8 +219,7 @@ def insert_or_modify_atom(state, cursor_x, cursor_y, screen_dims,
 
                 # Convert cursor position to molecule coordinates
                 mol_x, mol_y = canvas.screen_to_mol_coords(
-                    cursor_x, cursor_y, state.box, state.scale, screen_dims,
-                    state.y_offset)
+                    cursor_x, cursor_y, state.box, state.scale, screen_dims)
 
                 # Set atom position in conformer
                 conf = state.mol.GetConformer()
@@ -252,8 +250,7 @@ def cleanup_coordinates(state, screen_dims):
         Chem.WedgeMolBonds(mol, mol.GetConformer())
 
         if state.scale is not None:
-            state.box, state.y_offset = recalculate_box_and_offset(
-                mol, state.scale, screen_dims)
+            state.box = recalculate_box_and_offset(mol, state.scale, screen_dims)
         return True
     except Exception:
         logging.exception("Error regenerating coordinates")
@@ -269,4 +266,3 @@ def clear_canvas(state, screen_dims):
     state.mol = empty.mol
     state.box = empty.box
     state.scale = empty.scale
-    state.y_offset = empty.y_offset

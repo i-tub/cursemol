@@ -12,27 +12,26 @@ import math
 from . import config
 
 
-def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims, y_offset):
+def screen_to_mol_coords(cursor_x, cursor_y, box, scale, screen_dims):
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from screen_coords_for_atom
     mol_x = (cursor_x - config.PADDING) / scale[0] + box[0][0]
-    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], y_offset,
-                              screen_dims.rows)
+    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], screen_dims.rows)
 
     return mol_x, mol_y
 
 
-def screen_y_to_mol_y(screen_y, box_min_y, scale_y, y_offset, rows):
+def screen_y_to_mol_y(screen_y, box_min_y, scale_y, rows):
     """
     Convert screen Y coordinate to molecular Y coordinate.
 
     Reverses the Y-axis flip: terminal Y points down but molecular Y points up.
     """
     y_from_bottom = rows - 1 - screen_y
-    return (y_from_bottom - config.PADDING - y_offset) / scale_y + box_min_y
+    return (y_from_bottom - config.PADDING) / scale_y + box_min_y
 
 
-def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
+def mol_y_to_screen_y(mol_y, box_min_y, scale_y, rows):
     """
     Convert molecular Y coordinate to screen Y coordinate.
 
@@ -40,8 +39,7 @@ def mol_y_to_screen_y(mol_y, box_min_y, scale_y, y_offset, rows):
     but molecular coordinates point up (higher Y = higher position).
     Therefore higher molecular Y -> lower screen Y (closer to top).
     """
-    y_from_bottom = config.PADDING + y_offset + int(
-        (mol_y - box_min_y) * scale_y)
+    y_from_bottom = config.PADDING + int((mol_y - box_min_y) * scale_y)
     return rows - 1 - y_from_bottom
 
 
@@ -89,17 +87,12 @@ def zoom_view(state, screen_dims, zoom_factor):
     state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
                  (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
 
-    # Recalculate y_offset for new scale
-    mol_display_height = int(mol_height * yscale + 2 * config.PADDING)
-    state.y_offset = max(0, (screen_dims.rows - mol_display_height) // 2)
-
 
 def screen_coords_for_atom(atom, state, conf, rows):
     """Calculate screen coordinates for an atom."""
     pos = conf.GetAtomPosition(atom.GetIdx())
     x = config.PADDING + int((pos.x - state.box[0][0]) * state.scale[0])
-    y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1],
-                          state.y_offset, rows)
+    y = mol_y_to_screen_y(pos.y, state.box[0][1], state.scale[1], rows)
     return x, y
 
 
@@ -295,7 +288,7 @@ def draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf):
         atom: RDKit atom object
         x, y: screen coordinates for the atom
         rows, cols: screen buffer dimensions
-        state: State object with scale, box, y_offset
+        state: State object with scale and box
         conf: RDKit conformer object
     """
     sym = atom.GetSymbol()
