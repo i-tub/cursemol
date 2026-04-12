@@ -54,4 +54,6 @@
     dev = [
         "pytest>=8.0",
         "flake8",
+        "ipython",
+        "more_itertools",
     ]

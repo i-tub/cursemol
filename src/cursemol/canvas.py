@@ -331,7 +331,7 @@ def fill_screen_buffer(state, screen_dims):
     """
     # Calculate screen size
     rows = screen_dims.rows
-    cols = 200  # Generous width
+    cols = screen_dims.max_x
 
     screen = [[' '] * cols for i in range(rows)]
     screen_colors = [[0] * cols for i in range(rows)]  # 0 = default color
