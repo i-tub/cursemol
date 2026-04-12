@@ -246,8 +246,9 @@ def main_loop(stdscr, initial_smiles=None):
             elif key == 'q':
                 # Allow quitting from move mode
                 return chem.get_smiles(state.mol)
-            # Ignore all other keys in move mode
-            need_redraw = False
+            else:
+                # Ignore all other keys in move mode
+                need_redraw = False
 
         # Special handling for selection mode
         elif mode == Mode.SELECT:
