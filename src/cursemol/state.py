@@ -67,9 +67,7 @@ class State:
 
     def copy(self):
         """Create deep copy for undo/redo."""
-        return State(mol=Chem.RWMol(self.mol),
-                     box=self.box,
-                     scale=self.scale)
+        return State(mol=Chem.RWMol(self.mol), box=self.box, scale=self.scale)
 
 
 @dataclass

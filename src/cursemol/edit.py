@@ -250,7 +250,8 @@ def cleanup_coordinates(state, screen_dims):
         Chem.WedgeMolBonds(mol, mol.GetConformer())
 
         if state.scale is not None:
-            state.box = recalculate_box_and_offset(mol, state.scale, screen_dims)
+            state.box = recalculate_box_and_offset(mol, state.scale,
+                                                   screen_dims)
         return True
     except Exception:
         logging.exception("Error regenerating coordinates")

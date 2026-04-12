@@ -179,7 +179,7 @@ def main_loop(stdscr, initial_smiles=None):
             screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
             # Recalculate molecule position for new screen size
             state.box = recalculate_box_and_offset(state.mol, state.scale,
-                                                    screen_dims)
+                                                   screen_dims)
             # Clamp cursor to new bounds
             cursor_x = min(cursor_x, screen_dims.max_x - 1)
             cursor_y = min(cursor_y, screen_dims.rows - 1)
