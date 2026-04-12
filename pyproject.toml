@@ -56,4 +56,5 @@
         "flake8",
         "ipython",
         "more_itertools",
+        "mypy",
     ]
