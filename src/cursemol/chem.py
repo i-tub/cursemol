@@ -7,10 +7,11 @@ from __future__ import annotations
 import io
 import re
 import logging
+from typing import cast
 
 from rdkit import Chem
 from rdkit import Geometry
-from rdkit.Chem import AllChem
+from rdkit.Chem import rdDepictor
 import numpy as np
 
 rdkit_logger = logging.getLogger('rdkit')
@@ -23,11 +24,12 @@ class CaptureRDKitLog:
 
     def __enter__(self) -> 'CaptureRDKitLog':
         self._stream = io.StringIO()
-        self._old_stream = rdkit_logger.handlers[0].setStream(self._stream)
+        self._handler = cast(logging.StreamHandler, rdkit_logger.handlers[0])
+        self._old_stream = self._handler.setStream(self._stream)
         return self
 
     def __exit__(self, *a) -> None:
-        rdkit_logger.handlers[0].setStream(self._old_stream)
+        self._handler.setStream(self._old_stream)
 
     def getMessage(self) -> str:
         """Return log messages after stripping them of timestamps"""
@@ -159,7 +161,7 @@ def get_mol(smiles: str) -> Chem.RWMol | None:
     if mol is not None:
         Chem.Kekulize(mol, True)
         mol = Chem.RWMol(mol)
-        AllChem.Compute2DCoords(mol)
+        rdDepictor.Compute2DCoords(mol)
         Chem.WedgeMolBonds(mol, mol.GetConformer())
     return mol
 
@@ -184,4 +186,4 @@ def compute_coords_with_fixed_atoms(mol: Chem.RWMol,
         coord_map[i] = Geometry.Point2D(pos.x, pos.y)
 
     # Compute 2D coordinates for new atoms only
-    AllChem.Compute2DCoords(mol, coordMap=coord_map)
+    rdDepictor.Compute2DCoords(mol, coordMap=coord_map)

@@ -143,7 +143,7 @@ Functions in `state.py`:
 
 The `chem.py` module wraps RDKit's molecular editing capabilities:
 - Uses `RWMol` (read-write molecule) for editing operations
-- `AllChem.Compute2DCoords()` for 2D coordinate generation
+- `rdDepictor.Compute2DCoords()` for 2D coordinate generation
 - `Chem.WedgeMolBonds()` to assign wedge/dash stereochemistry from 3D coords
 - Stereochemistry detection via `DetectBondStereochemistry()`,
   `AssignChiralTypesFromBondDirs()`, and `AssignStereochemistry()`

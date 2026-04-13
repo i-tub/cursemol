@@ -214,7 +214,8 @@ def redraw_screen(stdscr: curses.window,
                 break
 
     # Draw selection rectangle if in selection mode
-    if mode == Mode.SELECT and selection_anchor_x is not None and cursor_x is not None:
+    if (mode == Mode.SELECT and selection_anchor_x is not None and
+            cursor_x is not None):
         draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
                             cursor_x, cursor_y, screen_dims)
 

@@ -11,7 +11,7 @@ import logging
 import math
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import rdDepictor
 
 from . import canvas
 from . import chem
@@ -255,7 +255,7 @@ def cleanup_coordinates(state: State, screen_dims: ScreenDimensions) -> bool:
         # for the new coordinates.
         for bond in mol.GetBonds():
             bond.SetBondDir(Chem.BondDir.NONE)
-        AllChem.Compute2DCoords(mol)
+        rdDepictor.Compute2DCoords(mol)
         Chem.WedgeMolBonds(mol, mol.GetConformer())
 
         if state.scale is not None:

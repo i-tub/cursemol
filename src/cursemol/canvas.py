@@ -18,11 +18,13 @@ from . import config
 from .state import State, ScreenDimensions
 
 
-def screen_to_mol_coords(cursor_x: int, cursor_y: int,
-                         box: tuple[tuple[float, float, float],
-                                    tuple[float, float,
-                                          float]], scale: tuple[float, float],
-                         screen_dims: ScreenDimensions) -> tuple[float, float]:
+def screen_to_mol_coords(
+    cursor_x: int,
+    cursor_y: int,
+    box: tuple[tuple[float, float, float], tuple[float, float, float]],
+    scale: tuple[float, float],
+    screen_dims: ScreenDimensions,
+) -> tuple[float, float]:
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from screen_coords_for_atom
     mol_x = (cursor_x - config.PADDING) / scale[0] + box[0][0]
@@ -159,7 +161,7 @@ def find_nearest_atom(
             nearest_atom = atom_idx
             nearest_pos = (screen_x, screen_y)
 
-    if nearest_atom is not None:
+    if nearest_atom is not None and nearest_pos is not None:
         return (nearest_atom, nearest_pos[0], nearest_pos[1])
     return None
 
