@@ -1,5 +1,5 @@
 """
-Functions that "draw" molecules to a an abstract canvas, that is, a 2D array of
+Functions that "draw" molecules to an abstract canvas, that is, a 2D array of
 characters. Also, helper functions for converting between real atom coordinates
 and canvas coordinates.
 
@@ -279,16 +279,21 @@ def draw_line(screen: list[list[str]], char: str, char2: str, x1: int, y1: int,
         y1, y2 = y2, y1
         rev = True
     mid = round((x1 + 1 + x2) / 2)
-    for x in range(x1 + 1, x2):
+    for x in range(max(x1 + 1, 0), x2):
         y = int(round(y1 + slope * (x - x1)))
+        if y < 0:
+            continue
         if rev:
             c = char if x >= mid else char2
         else:
             c = char if x < mid else char2
-        if vertical:
-            screen[x][y] = c
-        else:
-            screen[y][x] = c
+        try:
+            if vertical:
+                screen[x][y] = c
+            else:
+                screen[y][x] = c
+        except IndexError:
+            pass  # Ignore out-of-bounds.
 
 
 def draw_string(screen: list[list[str]], screen_colors: list[list[int]], s: str,
