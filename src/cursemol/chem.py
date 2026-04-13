@@ -40,6 +40,11 @@ def get_box(mol: Chem.Mol) -> tuple[np.ndarray, np.ndarray]:
     """
     Return the bounding box for the molecule.
     """
+    if mol.GetNumAtoms() == 0:
+        # Default box: 20 angstroms centered at origin
+        box_size = 10.0
+        return (np.array([-box_size, -box_size,
+                          0.0]), np.array([box_size, box_size, 0.0]))
     conf = mol.GetConformer(0)
     xyz = conf.GetPositions()
     return (xyz.min(axis=0), xyz.max(axis=0))

@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+import numpy as np
 from rdkit import Chem
 
 from . import chem
@@ -26,9 +27,9 @@ class Mode(Enum):
 class State:
     """Molecular drawing state: molecule and its display parameters."""
     mol: Chem.RWMol
-    box: tuple[tuple[float, float, float],
-               tuple[float, float,
-                     float]]  # ((min_x, min_y, min_z), (max_x, max_y, max_z))
+
+    box: tuple[np.ndarray, np.ndarray]  # Two corners as 3D vectors (Z=0.0)
+
     scale: tuple[float, float]  # (xscale, yscale)
 
     @classmethod
@@ -42,9 +43,7 @@ class State:
         conf = Chem.Conformer()
         mol.AddConformer(conf)
 
-        # Default box: 20 angstroms centered at origin
-        box_size = 10.0
-        box = ((-box_size, -box_size, 0.0), (box_size, box_size, 0.0))
+        box = chem.get_box(mol)
 
         # Use default scale
         xscale = config.DEFAULT_SCALE
@@ -121,8 +120,8 @@ class UndoHistory:
 
 
 def recalculate_box_and_offset(
-    mol: Chem.Mol, scale: tuple[float, float], screen_dims: ScreenDimensions
-) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        mol: Chem.Mol, scale: tuple[float, float],
+        screen_dims: ScreenDimensions) -> tuple[np.ndarray, np.ndarray]:
     """
     Recalculate box for a molecule at a given scale.
     Centers the view on the molecule's actual bounding box.
@@ -142,16 +141,15 @@ def recalculate_box_and_offset(
     mol_height = screen_height / scale[1]
 
     # Create box centered on molecule center
-    box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-           (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+    box = (np.array([center_x - mol_width / 2, center_y - mol_height / 2, 0.0]),
+           np.array([center_x + mol_width / 2, center_y + mol_height / 2, 0.0]))
 
     return box
 
 
 def calculate_box_and_scale(
-    mol: Chem.Mol, max_x: int, max_y: int
-) -> tuple[tuple[tuple[float, float, float], tuple[float, float, float]], tuple[
-        float, float]]:
+        mol: Chem.Mol, max_x: int, max_y: int
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[float, float]]:
     """Calculate bounding box and scale for a molecule, centered on screen."""
     actual_box = chem.get_box(mol)
     (xmin, ymin, zmin), (xmax, ymax, zmax) = actual_box

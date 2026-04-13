@@ -13,6 +13,7 @@ import math
 from dataclasses import dataclass
 from typing import Iterator
 
+import numpy as np
 from rdkit import Chem
 
 from . import config
@@ -28,7 +29,7 @@ class Coords:
 
 def screen_to_mol_coords(
     cursor: Coords,
-    box: tuple[tuple[float, float, float], tuple[float, float, float]],
+    box: tuple[np.ndarray, np.ndarray],
     scale: tuple[float, float],
     screen_dims: ScreenDimensions,
 ) -> tuple[float, float]:
@@ -74,7 +75,10 @@ def shift_view(state: State, dx: float, dy: float) -> None:
     dx = dx / state.scale[0]
     dy = dy / state.scale[1]
 
-    state.box = ((xmin + dx, ymin + dy, zmin), (xmax + dx, ymax + dy, zmax))
+    state.box = (
+        np.array([xmin + dx, ymin + dy, zmin]),
+        np.array([xmax + dx, ymax + dy, zmax]),
+    )
 
 
 def zoom_view(state: State, screen_dims: ScreenDimensions,
@@ -106,8 +110,10 @@ def zoom_view(state: State, screen_dims: ScreenDimensions,
     mol_height = screen_height / yscale
 
     # New box centered on the same point
-    state.box = ((center_x - mol_width / 2, center_y - mol_height / 2, 0.0),
-                 (center_x + mol_width / 2, center_y + mol_height / 2, 0.0))
+    state.box = (
+        np.array([center_x - mol_width / 2, center_y - mol_height / 2, 0.0]),
+        np.array([center_x + mol_width / 2, center_y + mol_height / 2, 0.0]),
+    )
 
 
 def screen_coords_for_atom(atom: Chem.Atom, state: State, conf: Chem.Conformer,
