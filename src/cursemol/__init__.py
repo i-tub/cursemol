@@ -18,6 +18,7 @@ import sys
 
 from rdkit import Chem
 
+from . import chem
 from . import sketcher
 
 rdkit_logger = logging.getLogger('rdkit')
@@ -50,7 +51,7 @@ def setup_tty() -> int | None:
         os.close(tty_fd)
         sys.stdin = os.fdopen(0, 'r')
         # Register cleanup to avoid resource warning on exit
-        atexit.register(lambda: sys.stdin.close())
+        atexit.register(sys.stdin.close)
 
     # Handle stdout
     if not sys.stdout.isatty():
@@ -58,8 +59,8 @@ def setup_tty() -> int | None:
         tty_fd = os.open('/dev/tty', os.O_WRONLY)
         os.dup2(tty_fd, 1)  # Replace fd 1 (stdout) with /dev/tty
         os.close(tty_fd)
-        sys.stdout = sys.__stdout__ = os.fdopen(
-            1, 'w')  # Update both stdout and __stdout__
+        sys.stdout = os.fdopen(1, 'w')
+        atexit.register(sys.stdout.close)
 
     return original_stdout_fd
 
@@ -74,7 +75,6 @@ def main() -> None:
 
     # Capture RDKit warnings
     rdkit_logger.setLevel(logging.ERROR)
-    rdkit_logger.handlers[0].setStream(io.StringIO())
     Chem.rdBase.LogToPythonLogger()
 
     args = parse_args()
@@ -84,7 +84,8 @@ def main() -> None:
     if initial_smiles == "-":
         initial_smiles = sys.stdin.readline().strip()
 
-    original_stdout_fd = setup_tty()
+    with chem.CaptureRDKitLog():
+        original_stdout_fd = setup_tty()
 
     smiles = sketcher.run(initial_smiles)
 
