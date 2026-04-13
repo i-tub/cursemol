@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import dataclass
 from typing import Iterator
 
 from rdkit import Chem
@@ -18,17 +19,23 @@ from . import config
 from .state import State, ScreenDimensions
 
 
+@dataclass
+class Coords:
+    """2D screen coordinates (integer cursor/terminal position)."""
+    x: int
+    y: int
+
+
 def screen_to_mol_coords(
-    cursor_x: int,
-    cursor_y: int,
+    cursor: Coords,
     box: tuple[tuple[float, float, float], tuple[float, float, float]],
     scale: tuple[float, float],
     screen_dims: ScreenDimensions,
 ) -> tuple[float, float]:
     """Convert cursor/terminal coordinates to molecule coordinates."""
     # Reverse the coordinate transformation from screen_coords_for_atom
-    mol_x = (cursor_x - config.PADDING) / scale[0] + box[0][0]
-    mol_y = screen_y_to_mol_y(cursor_y, box[0][1], scale[1], screen_dims.rows)
+    mol_x = (cursor.x - config.PADDING) / scale[0] + box[0][0]
+    mol_y = screen_y_to_mol_y(cursor.y, box[0][1], scale[1], screen_dims.rows)
 
     return mol_x, mol_y
 
@@ -112,10 +119,11 @@ def screen_coords_for_atom(atom: Chem.Atom, state: State, conf: Chem.Conformer,
     return x, y
 
 
-def normalize_rect(x1: int, y1: int, x2: int,
-                   y2: int) -> tuple[int, int, int, int]:
+def normalize_rect(corner1: Coords,
+                   corner2: Coords) -> tuple[int, int, int, int]:
     """Normalize rectangle coordinates to (min_x, min_y, max_x, max_y)."""
-    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+    return (min(corner1.x, corner2.x), min(corner1.y, corner2.y),
+            max(corner1.x, corner2.x), max(corner1.y, corner2.y))
 
 
 def iter_atom_screen_positions(
@@ -133,13 +141,12 @@ def iter_atom_screen_positions(
 
 def find_nearest_atom(
         state: State,
-        cursor_x: int,
-        cursor_y: int,
+        cursor: Coords,
         screen_dims: ScreenDimensions,
-        exclude_atom_idx: int | None = None) -> tuple[int, int, int] | None:
+        exclude_atom_idx: int | None = None) -> tuple[int, Coords] | None:
     """
     Find the atom nearest to the cursor position.
-    Returns (atom_index, screen_x, screen_y) or None if no atoms.
+    Returns (atom_index, coords) or None if no atoms.
     """
     min_dist_sq = float('inf')
     nearest_atom = None
@@ -154,21 +161,20 @@ def find_nearest_atom(
             continue
 
         # Calculate squared distance (avoid sqrt for performance)
-        dist_sq = (screen_x - cursor_x)**2 + (screen_y - cursor_y)**2
+        dist_sq = (screen_x - cursor.x)**2 + (screen_y - cursor.y)**2
 
         if dist_sq < min_dist_sq:
             min_dist_sq = dist_sq
             nearest_atom = atom_idx
-            nearest_pos = (screen_x, screen_y)
+            nearest_pos = Coords(screen_x, screen_y)
 
     if nearest_atom is not None and nearest_pos is not None:
-        return (nearest_atom, nearest_pos[0], nearest_pos[1])
+        return (nearest_atom, nearest_pos)
     return None
 
 
 def find_atom_at_cursor(state: State,
-                        cursor_x: int,
-                        cursor_y: int,
+                        cursor: Coords,
                         screen_dims: ScreenDimensions,
                         tolerance: int = 1) -> int | None:
     """
@@ -177,14 +183,14 @@ def find_atom_at_cursor(state: State,
     """
     for atom, screen_x, screen_y in iter_atom_screen_positions(
             state, screen_dims):
-        if (abs(screen_x - cursor_x) <= tolerance and
-                abs(screen_y - cursor_y) <= tolerance):
+        if (abs(screen_x - cursor.x) <= tolerance and
+                abs(screen_y - cursor.y) <= tolerance):
             return atom.GetIdx()
 
     return None
 
 
-def find_bond_atoms(state: State, cursor_x: int, cursor_y: int,
+def find_bond_atoms(state: State, cursor: Coords,
                     screen_dims: ScreenDimensions) -> tuple[int, int] | None:
     """
     Find the two atoms closest to cursor position such that
@@ -199,8 +205,8 @@ def find_bond_atoms(state: State, cursor_x: int, cursor_y: int,
     distances = []
     for atom, screen_x, screen_y in iter_atom_screen_positions(
             state, screen_dims):
-        dx = screen_x - cursor_x
-        dy = screen_y - cursor_y
+        dx = screen_x - cursor.x
+        dy = screen_y - cursor.y
         dist = math.sqrt(dx * dx + dy * dy)
         distances.append((dist, atom.GetIdx(), screen_x, screen_y))
 
@@ -218,10 +224,10 @@ def find_bond_atoms(state: State, cursor_x: int, cursor_y: int,
             dist2, idx2, x2, y2 = distances[j]
 
             # Calculate vectors from cursor position to each atom
-            v1_x = x1 - cursor_x
-            v1_y = y1 - cursor_y
-            v2_x = x2 - cursor_x
-            v2_y = y2 - cursor_y
+            v1_x = x1 - cursor.x
+            v1_y = y1 - cursor.y
+            v2_x = x2 - cursor.x
+            v2_y = y2 - cursor.y
 
             # Calculate lengths
             len1 = math.sqrt(v1_x * v1_x + v1_y * v1_y)

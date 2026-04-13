@@ -15,6 +15,7 @@ from . import config
 from . import chem
 from . import edit
 from . import ui
+from .canvas import Coords
 from .state import Mode
 from .state import ScreenDimensions
 from .state import State
@@ -49,7 +50,7 @@ def load_smiles(stdscr: curses.window,
 
 
 def append_smiles_fragment(
-        stdscr: curses.window, state: State, cursor_x: int, cursor_y: int,
+        stdscr: curses.window, state: State, cursor: Coords,
         screen_dims: ScreenDimensions) -> tuple[State | None, str]:
     """
     Handle the 'a' command: append atoms from SMILES to atom or bond under
@@ -58,14 +59,12 @@ def append_smiles_fragment(
     Returns State object if successful, None if no change was made.
     """
     # Find atom under cursor
-    atom_idx = canvas.find_atom_at_cursor(state, cursor_x, cursor_y,
-                                          screen_dims)
+    atom_idx = canvas.find_atom_at_cursor(state, cursor, screen_dims)
 
     # Check if on a bond if not on an atom
     bond_atom_pair = None
     if atom_idx is None:
-        bond_atom_pair = canvas.find_bond_atoms(state, cursor_x, cursor_y,
-                                                screen_dims)
+        bond_atom_pair = canvas.find_bond_atoms(state, cursor, screen_dims)
 
     if atom_idx is None and bond_atom_pair is None:
         return None, ""  # Nothing to do
@@ -92,11 +91,10 @@ def append_smiles_fragment(
         if atom_idx is not None:
             # Cursor on atom: connect to first atom of sidechain
             state.mol.AddBond(atom_idx, start_idx, Chem.BondType.SINGLE)
-        else:
+        elif bond_atom_pair is not None:
             # Cursor on bond: insert sidechain between the two atoms
             edit.connect_sidechain_to_bond(state, bond_atom_pair, start_idx,
-                                           end_idx, cursor_x, cursor_y,
-                                           screen_dims)
+                                           end_idx, cursor, screen_dims)
 
         # Compute 2D coordinates for new atoms, keeping original atoms fixed
         chem.compute_coords_with_fixed_atoms(state.mol, start_idx)
@@ -119,7 +117,7 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
     screen_dims = ScreenDimensions(max_x=max_x, max_y=max_y)
 
     # Starting cursor position (center of screen)
-    cursor_y, cursor_x = screen_dims.rows // 2, screen_dims.max_x // 2
+    cursor = Coords(x=screen_dims.max_x // 2, y=screen_dims.rows // 2)
 
     # SMILES string storage
     show_smiles = False
@@ -145,8 +143,7 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
 
     # UI mode and selection state
     mode = Mode.NORMAL
-    selection_anchor_x = None
-    selection_anchor_y = None
+    selection_anchor: Coords | None = None
 
     # Bond mode state
     bond_start_atom_idx = None
@@ -156,15 +153,14 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Only redraw everything when necessary
         if need_redraw:
             ui.redraw_screen(stdscr, state, show_smiles, screen_dims, mode,
-                             selection_anchor_x, selection_anchor_y, cursor_x,
-                             cursor_y, error_message)
+                             selection_anchor, cursor, error_message)
 
         # Most commands need redraw; the few that don't will set it to False.
         need_redraw = True
 
         # Move cursor to current position
         try:
-            stdscr.move(cursor_y, cursor_x)
+            stdscr.move(cursor.y, cursor.x)
         except curses.error:
             pass
 
@@ -186,8 +182,8 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
             state.box = recalculate_box_and_offset(state.mol, state.scale,
                                                    screen_dims)
             # Clamp cursor to new bounds
-            cursor_x = min(cursor_x, screen_dims.max_x - 1)
-            cursor_y = min(cursor_y, screen_dims.rows - 1)
+            cursor = Coords(x=min(cursor.x, screen_dims.max_x - 1),
+                            y=min(cursor.y, screen_dims.rows - 1))
             continue
 
         # Convert to character (will skip non-char keys)
@@ -220,18 +216,22 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
             else:
                 # Normal/select/bond mode: move cursor
                 if key_lower == 'h':  # left
-                    cursor_x = max(0, cursor_x - delta)
+                    cursor = Coords(x=max(0, cursor.x - delta), y=cursor.y)
                 elif key_lower == 'j':  # down
-                    cursor_y = min(screen_dims.rows - 1, cursor_y + delta_y)
+                    cursor = Coords(x=cursor.x,
+                                    y=min(screen_dims.rows - 1,
+                                          cursor.y + delta_y))
                 elif key_lower == 'k':  # up
-                    cursor_y = max(0, cursor_y - delta_y)
+                    cursor = Coords(x=cursor.x, y=max(0, cursor.y - delta_y))
                 elif key_lower == 'l':  # right
-                    cursor_x = min(screen_dims.max_x - 1, cursor_x + delta)
+                    cursor = Coords(x=min(screen_dims.max_x - 1,
+                                          cursor.x + delta),
+                                    y=cursor.y)
 
                 # Update new atom position in bond mode
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = canvas.screen_to_mol_coords(
-                        cursor_x, cursor_y, state.box, state.scale, screen_dims)
+                        cursor, state.box, state.scale, screen_dims)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -254,18 +254,15 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         elif mode == Mode.SELECT:
             if key in '\nx':  # Enter or x commits delete
                 # Delete atoms in selection
-                if edit.delete_atoms_in_rect(state, selection_anchor_x,
-                                             selection_anchor_y, cursor_x,
-                                             cursor_y, screen_dims):
+                if selection_anchor is not None and edit.delete_atoms_in_rect(
+                        state, selection_anchor, cursor, screen_dims):
                     history.push(state)
                 mode = Mode.NORMAL
-                selection_anchor_x = None
-                selection_anchor_y = None
+                selection_anchor = None
             elif key == '\x1b':  # Escape
                 # Cancel selection
                 mode = Mode.NORMAL
-                selection_anchor_x = None
-                selection_anchor_y = None
+                selection_anchor = None
             elif key == 'q':
                 # Allow quitting from selection mode
                 return chem.get_smiles(state.mol)
@@ -276,18 +273,17 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Snap to nearest atom
         elif key == ' ':
             # In bond mode, exclude the new atom from snap search
-            exclude_idx = bond_new_atom_idx if mode == Mode.BOND else None
-            result = canvas.find_nearest_atom(state, cursor_x, cursor_y,
-                                              screen_dims, exclude_idx)
-            if result is not None:
-                _, screen_x, screen_y = result
-                cursor_x = screen_x
-                cursor_y = screen_y
+            exclude_idx: int | None = bond_new_atom_idx if mode == Mode.BOND else None
+            nearest = canvas.find_nearest_atom(state, cursor, screen_dims,
+                                               exclude_idx)
+            if nearest is not None:
+                _, atom_coords = nearest
+                cursor = atom_coords
 
                 # Update new atom position in bond mode
                 if mode == Mode.BOND and bond_new_atom_idx is not None:
                     mol_x, mol_y = canvas.screen_to_mol_coords(
-                        cursor_x, cursor_y, state.box, state.scale, screen_dims)
+                        cursor, state.box, state.scale, screen_dims)
                     conf = state.mol.GetConformer()
                     conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -296,8 +292,11 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
             if key == '\n':  # Enter - accept bond
                 # Check if cursor is on another atom (excluding the new atom)
                 target_atom_idx = canvas.find_atom_at_cursor(
-                    state, cursor_x, cursor_y, screen_dims)
-                if target_atom_idx is not None and target_atom_idx != bond_new_atom_idx:
+                    state, cursor, screen_dims)
+                if (target_atom_idx is not None and
+                        target_atom_idx != bond_new_atom_idx and
+                        bond_new_atom_idx is not None and
+                        bond_start_atom_idx is not None):
                     # Delete new atom and form bond between start and target
                     state.mol.RemoveAtom(bond_new_atom_idx)
                     # Adjust indices if needed (if new atom was before target)
@@ -340,8 +339,7 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Enter bond mode
         elif key == 'b':
             # Find atom at cursor to start bond from
-            start_idx = canvas.find_atom_at_cursor(state, cursor_x, cursor_y,
-                                                   screen_dims)
+            start_idx = canvas.find_atom_at_cursor(state, cursor, screen_dims)
             if start_idx is not None:
                 # Add new C atom at cursor position
                 bond_start_atom_idx = start_idx
@@ -349,7 +347,7 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
 
                 # Set position of new atom
                 mol_x, mol_y = canvas.screen_to_mol_coords(
-                    cursor_x, cursor_y, state.box, state.scale, screen_dims)
+                    cursor, state.box, state.scale, screen_dims)
                 conf = state.mol.GetConformer()
                 conf.SetAtomPosition(bond_new_atom_idx, [mol_x, mol_y, 0.0])
 
@@ -374,8 +372,8 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Insert atom at cursor position or change atom symbol
         elif key == 'i':
             symbol = ui.enter_element(stdscr, screen_dims.max_y)
-            result = edit.insert_or_modify_atom(state, cursor_x, cursor_y,
-                                                screen_dims, symbol)
+            result = edit.insert_or_modify_atom(state, cursor, screen_dims,
+                                                symbol)
             if result is not None:
                 state.mol = result
                 history.push(state)
@@ -383,8 +381,8 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Insert common atoms (c, n, o) - shortcuts, or change atom symbol
         elif key in ['c', 'n', 'o']:
             symbol = key.upper()
-            result = edit.insert_or_modify_atom(state, cursor_x, cursor_y,
-                                                screen_dims, symbol)
+            result = edit.insert_or_modify_atom(state, cursor, screen_dims,
+                                                symbol)
             if result is not None:
                 state.mol = result
                 history.push(state)
@@ -392,33 +390,30 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Append atoms from SMILES to atom under cursor or bond
         elif key == 'a':
             result, error_message = append_smiles_fragment(
-                stdscr, state, cursor_x, cursor_y, screen_dims)
+                stdscr, state, cursor, screen_dims)
             if result is not None:
                 state = result
                 history.push(state)
 
         # Delete atom or bond at cursor position
         elif key == 'x':
-            if edit.delete_at_cursor(state, cursor_x, cursor_y, screen_dims):
+            if edit.delete_at_cursor(state, cursor, screen_dims):
                 history.push(state)
 
         # Delete fragment (all atoms connected to cursor atom)
         elif key == 'D':
-            if edit.delete_fragment_at_cursor(state, cursor_x, cursor_y,
-                                              screen_dims):
+            if edit.delete_fragment_at_cursor(state, cursor, screen_dims):
                 history.push(state)
 
         # Enter area delete (selection) mode
         elif key == 'X':
             mode = Mode.SELECT
-            selection_anchor_x = cursor_x
-            selection_anchor_y = cursor_y
+            selection_anchor = cursor
 
         # Adjust formal charge
         elif key in '+-':
             dq = 1 if key == '+' else -1
-            if edit.adjust_formal_charge(state, cursor_x, cursor_y, screen_dims,
-                                         dq):
+            if edit.adjust_formal_charge(state, cursor, screen_dims, dq):
                 history.push(state)
 
         # Cleanup/regenerate coordinates (Ctrl-L)
@@ -434,21 +429,19 @@ def main_loop(stdscr: curses.window, initial_smiles: str | None = None) -> str:
         # Add/modify/delete bond
         elif key in ['1', '2', '3']:
             bond_order = int(key)
-            if edit.create_or_adjust_bond(state, cursor_x, cursor_y,
-                                          screen_dims, bond_order):
+            if edit.create_or_adjust_bond(state, cursor, screen_dims,
+                                          bond_order):
                 history.push(state)
 
         # Add/modify wedge bond (single bond with up stereochemistry)
         elif key == 'w':
-            if edit.create_or_adjust_bond(state, cursor_x, cursor_y,
-                                          screen_dims, 1,
+            if edit.create_or_adjust_bond(state, cursor, screen_dims, 1,
                                           Chem.BondDir.BEGINWEDGE):
                 history.push(state)
 
         # Add/modify dash bond (single bond with down stereochemistry)
         elif key == 'd':
-            if edit.create_or_adjust_bond(state, cursor_x, cursor_y,
-                                          screen_dims, 1,
+            if edit.create_or_adjust_bond(state, cursor, screen_dims, 1,
                                           Chem.BondDir.BEGINDASH):
                 history.push(state)
 

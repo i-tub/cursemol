@@ -10,6 +10,7 @@ import logging
 from . import canvas
 from . import config
 from . import chem
+from .canvas import Coords
 from .state import Mode, State, ScreenDimensions
 
 HELP_TEXT = """
@@ -112,11 +113,12 @@ def draw_mol(stdscr: curses.window, state: State,
     render_screen_buffer(stdscr, screen, screen_colors)
 
 
-def draw_selection_rect(stdscr: curses.window, x1: int, y1: int, x2: int,
-                        y2: int, screen_dims: ScreenDimensions) -> None:
+def draw_selection_rect(stdscr: curses.window, corner1: Coords, corner2: Coords,
+                        screen_dims: ScreenDimensions) -> None:
     """Draw a selection rectangle on the screen."""
     # Normalize coordinates
-    min_x, min_y, max_x_rect, max_y_rect = canvas.normalize_rect(x1, y1, x2, y2)
+    min_x, min_y, max_x_rect, max_y_rect = canvas.normalize_rect(
+        corner1, corner2)
 
     # Draw rectangle using box drawing characters or simple ASCII
     try:
@@ -184,10 +186,8 @@ def redraw_screen(stdscr: curses.window,
                   show_smiles: bool,
                   screen_dims: ScreenDimensions,
                   mode: Mode,
-                  selection_anchor_x: int | None = None,
-                  selection_anchor_y: int | None = None,
-                  cursor_x: int | None = None,
-                  cursor_y: int | None = None,
+                  selection_anchor: Coords | None = None,
+                  cursor: Coords | None = None,
                   error_message: str = "") -> None:
     """
     Redraw the entire screen with molecule, SMILES, and optional selection.
@@ -214,10 +214,8 @@ def redraw_screen(stdscr: curses.window,
                 break
 
     # Draw selection rectangle if in selection mode
-    if (mode == Mode.SELECT and selection_anchor_x is not None and
-            cursor_x is not None):
-        draw_selection_rect(stdscr, selection_anchor_x, selection_anchor_y,
-                            cursor_x, cursor_y, screen_dims)
+    if mode == Mode.SELECT and selection_anchor is not None and cursor is not None:
+        draw_selection_rect(stdscr, selection_anchor, cursor, screen_dims)
 
     # Draw error message or instructions at the bottom
     if error_message:
