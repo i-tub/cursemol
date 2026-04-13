@@ -46,3 +46,10 @@ Controls:
 
 - Python (tested with 3.11)
 - RDKit (tested with 2025.09.6)
+
+### History
+
+This project originated as an
+[April Fool's PR](https://github.com/schrodinger/sketcher/pull/290)
+which proposed to replace the Schrödinger sketcher. Also for this reason,
+the version number for the first upload to PyPI was 4.1.0.

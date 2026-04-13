@@ -7,7 +7,7 @@ guts of the application are in the `sketcher` module.
 
 from __future__ import annotations
 
-__version__ = "4.2.0"
+__version__ = "4.1.1"
 
 import argparse
 import atexit
