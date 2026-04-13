@@ -31,5 +31,8 @@ jobs:
       - name: Run tests (pytest)
         run: uv run pytest
 
+      - name: Check formatting (yapf)
+        run: uv run yapf -r -d src tests
+
       - name: Run static type checking (mypy)
         run: uv run mypy src

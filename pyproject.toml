@@ -57,4 +57,5 @@
         "ipython",
         "more_itertools",
         "mypy",
+        "yapf",
     ]
