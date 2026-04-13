@@ -11,7 +11,6 @@ __version__ = "4.2.0"
 
 import argparse
 import atexit
-import io
 import logging
 import os
 import sys
