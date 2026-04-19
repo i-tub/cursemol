@@ -27,6 +27,80 @@ class Coords:
     y: int
 
 
+class Canvas:
+    """
+    A canvas for drawing: a 2D array of characters and colors.
+    Generic drawing functionality with no chemistry knowledge.
+    """
+
+    def __init__(self, rows: int, cols: int):
+        """
+        Initialize a canvas with the given dimensions.
+
+        Args:
+            rows: Number of rows in the canvas
+            cols: Number of columns in the canvas
+        """
+        self.rows = rows
+        self.cols = cols
+        self.screen = [[' '] * cols for _ in range(rows)]
+        self.screen_colors = [[0] * cols for _ in range(rows)]
+
+    def drawString(self, s: str, x: int, y: int, color: int,
+                   is_bold: bool) -> None:
+        """
+        Draw a string into the screen buffer with the given color and bold flag.
+
+        Args:
+            s: String to draw
+            x, y: screen coordinates for the start of the string
+            color: color code for the string
+            is_bold: whether to draw the string in bold
+        """
+        for i, c in enumerate(s):
+            if 0 <= y < self.rows and 0 <= x + i < self.cols:
+                self.screen[y][x + i] = c
+                self.screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
+
+    def drawLine(self, char: str, char2: str, x1: int, y1: int, x2: int,
+                 y2: int) -> None:
+        """
+        Draw a line from (x1, y1) to (x2, y2) using `char` for the first half of
+        the line and `char2` for the second half.
+        """
+        vertical = False
+        if abs(x2 - x1) < abs(y2 - y1):
+            x1, y1 = y1, x1
+            x2, y2 = y2, x2
+            vertical = True
+        try:
+            slope = 1.0 * (y2 - y1) / (x2 - x1)
+        except ZeroDivisionError:
+            return
+
+        rev = False
+        if x1 > x2:
+            x1, x2 = x2, x1
+            y1, y2 = y2, y1
+            rev = True
+        mid = round((x1 + 1 + x2) / 2)
+        for x in range(max(x1 + 1, 0), x2):
+            y = int(round(y1 + slope * (x - x1)))
+            if y < 0:
+                continue
+            if rev:
+                c = char if x >= mid else char2
+            else:
+                c = char if x < mid else char2
+            try:
+                if vertical:
+                    self.screen[x][y] = c
+                else:
+                    self.screen[y][x] = c
+            except IndexError:
+                pass  # Ignore out-of-bounds.
+
+
 def screen_to_mol_coords(
     cursor: Coords,
     box: tuple[np.ndarray, np.ndarray],
@@ -263,78 +337,15 @@ def find_bond_atoms(state: State, cursor: Coords,
     return best_pair
 
 
-def draw_line(screen: list[list[str]], char: str, char2: str, x1: int, y1: int,
-              x2: int, y2: int) -> None:
-    """
-    Draw a line from (x1, y1) to (x2, y2) using `char` for the first half of the
-    line and `char2` for the second half.
-    """
-    vertical = False
-    if abs(x2 - x1) < abs(y2 - y1):
-        x1, y1 = y1, x1
-        x2, y2 = y2, x2
-        vertical = True
-    try:
-        slope = 1.0 * (y2 - y1) / (x2 - x1)
-    except ZeroDivisionError:
-        return
-
-    rev = False
-    if x1 > x2:
-        x1, x2 = x2, x1
-        y1, y2 = y2, y1
-        rev = True
-    mid = round((x1 + 1 + x2) / 2)
-    for x in range(max(x1 + 1, 0), x2):
-        y = int(round(y1 + slope * (x - x1)))
-        if y < 0:
-            continue
-        if rev:
-            c = char if x >= mid else char2
-        else:
-            c = char if x < mid else char2
-        try:
-            if vertical:
-                screen[x][y] = c
-            else:
-                screen[y][x] = c
-        except IndexError:
-            pass  # Ignore out-of-bounds.
-
-
-def draw_string(screen: list[list[str]], screen_colors: list[list[int]], s: str,
-                x: int, y: int, rows: int, cols: int, color: int,
-                is_bold: bool) -> None:
-    """
-    Draw a string into the screen buffer with the given color and bold flag.
-
-    Args:
-        screen: 2D character array
-        screen_colors: 2D color/attribute array
-        s: String to draw
-        x, y: screen coordinates for the start of the string
-        rows, cols: screen buffer dimensions
-        color: color code for the string
-        is_bold: whether to draw the string in bold
-    """
-    for i, c in enumerate(s):
-        if 0 <= y < rows and 0 <= x + i < cols:
-            screen[y][x + i] = c
-            screen_colors[y][x + i] = color | (0x100 if is_bold else 0)
-
-
-def draw_atom(screen: list[list[str]], screen_colors: list[list[int]],
-              atom: Chem.Atom, x: int, y: int, rows: int, cols: int,
-              state: State, conf: Chem.Conformer) -> None:
+def draw_atom(canvas: Canvas, atom: Chem.Atom, x: int, y: int, state: State,
+              conf: Chem.Conformer) -> None:
     """
     Draw a single atom with its symbol and charge into the screen buffer.
 
     Args:
-        screen: 2D character array
-        screen_colors: 2D color/attribute array
+        canvas: Canvas object to draw on
         atom: RDKit atom object
         x, y: screen coordinates for the atom
-        rows, cols: screen buffer dimensions
         state: State object with scale and box
         conf: RDKit conformer object
     """
@@ -344,7 +355,7 @@ def draw_atom(screen: list[list[str]], screen_colors: list[list[int]],
     is_bold = sym != 'C'
 
     # Draw atom symbol
-    draw_string(screen, screen_colors, sym, x, y, rows, cols, color, is_bold)
+    canvas.drawString(sym, x, y, color, is_bold)
 
     # Draw hydrogens if heteroatom
     h_str = ''
@@ -384,8 +395,7 @@ def draw_atom(screen: list[list[str]], screen_colors: list[list[int]],
             else:
                 h_x = x + len(sym)
 
-            draw_string(screen, screen_colors, h_str, h_x, y, rows, cols, color,
-                        is_bold)
+            canvas.drawString(h_str, h_x, y, color, is_bold)
 
     # Draw formal charge if non-zero
     charge = atom.GetFormalCharge()
@@ -409,24 +419,19 @@ def draw_atom(screen: list[list[str]], screen_colors: list[list[int]],
             charge_x = x + len(sym) + len(h_str)
         charge_y = y - 1
 
-        draw_string(screen, screen_colors, charge_str, charge_x, charge_y, rows,
-                    cols, color, is_bold)
+        canvas.drawString(charge_str, charge_x, charge_y, color, is_bold)
 
 
-def fill_screen_buffer(
-        state: State, screen_dims: ScreenDimensions
-) -> tuple[list[list[str]], list[list[int]]]:
+def fill_screen_buffer(state: State, screen_dims: ScreenDimensions) -> Canvas:
     """
     Fill screen buffer with bonds and atoms.
-    Returns (screen, screen_colors) tuple of 2D arrays.
+    Returns Canvas object.
     """
     # Calculate screen size
     rows = screen_dims.rows
     cols = screen_dims.max_x
 
-    screen = [[' '] * cols for i in range(rows)]
-    screen_colors = [[0] * cols for i in range(rows)]  # 0 = default color
-
+    canvas = Canvas(rows, cols)
     conf = state.mol.GetConformer(0)
 
     # Draw bonds
@@ -440,7 +445,7 @@ def fill_screen_buffer(
             if bond_char := config.BOND_CHARS.get(bond.GetBondType()):
                 bond_dir_char = config.BOND_DIR_CHARS.get(
                     bond.GetBondDir(), bond_char)
-                draw_line(screen, bond_char, bond_dir_char, x1, y1, x2, y2)
+                canvas.drawLine(bond_char, bond_dir_char, x1, y1, x2, y2)
     except Exception:
         logging.exception("Error drawing bonds")
         # If there's any issue drawing bonds, continue to draw atoms
@@ -448,6 +453,6 @@ def fill_screen_buffer(
 
     # Draw atoms
     for atom, x, y in iter_atom_screen_positions(state, screen_dims):
-        draw_atom(screen, screen_colors, atom, x, y, rows, cols, state, conf)
+        draw_atom(canvas, atom, x, y, state, conf)
 
-    return screen, screen_colors
+    return canvas

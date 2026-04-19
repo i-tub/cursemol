@@ -68,20 +68,18 @@ def init_curses(stdscr: curses.window) -> None:
     stdscr.clear()
 
 
-def render_screen_buffer(stdscr: curses.window, screen: list[list[str]],
-                         screen_colors: list[list[int]]) -> None:
+def render_canvas(stdscr: curses.window, canvas: canvas.Canvas) -> None:
     """
-    Render a screen buffer to the curses window.
+    Render a canvas to the curses window.
 
     Args:
         stdscr: curses window
-        screen: 2D character array
-        screen_colors: 2D color/attribute array
+        canvas: Canvas object with screen and color data
     """
-    for i in range(len(screen)):
-        for j in range(len(screen[i])):
-            char = screen[i][j]
-            color_data = screen_colors[i][j]
+    for i in range(len(canvas.screen)):
+        for j in range(len(canvas.screen[i])):
+            char = canvas.screen[i][j]
+            color_data = canvas.screen_colors[i][j]
             color = color_data & 0xFF  # Lower 8 bits
             is_bold = (color_data & 0x100) != 0  # Bit 8
             try:
@@ -107,10 +105,10 @@ def draw_mol(stdscr: curses.window, state: State,
         return
 
     # Fill screen buffer with molecular structure
-    screen, screen_colors = canvas.fill_screen_buffer(state, screen_dims)
+    mol_canvas = canvas.fill_screen_buffer(state, screen_dims)
 
     # Render buffer to curses window
-    render_screen_buffer(stdscr, screen, screen_colors)
+    render_canvas(stdscr, mol_canvas)
 
 
 def draw_selection_rect(stdscr: curses.window, corner1: Coords, corner2: Coords,

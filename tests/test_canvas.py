@@ -31,26 +31,27 @@ def compare_chars(got, expected):
 
 
 def test_CCO(state, screen_dims):
-    chars, colors = canvas.fill_screen_buffer(state, screen_dims)
+    c = canvas.fill_screen_buffer(state, screen_dims)
     expected_chars = """
                    ·C·
                ····   ····
            ····           ···
          C·                  ·OH"""
-    compare_chars(chars, expected_chars)
+    compare_chars(c.screen, expected_chars)
 
     # To keep it simple we'll just count how many red bold cells we have.
-    num_bold_red = sum(c == 257 for c in more_itertools.flatten(colors))
+    num_bold_red = sum(
+        color == 257 for color in more_itertools.flatten(c.screen_colors))
     assert num_bold_red == 2
 
 
 def test_CCO_scaled(state, screen_dims):
     state.scale = (4.0, 1.6)
-    chars, colors = canvas.fill_screen_buffer(state, screen_dims)
+    c = canvas.fill_screen_buffer(state, screen_dims)
     expected_chars = """
           ··C··
        C··     ··OH"""
-    compare_chars(chars, expected_chars)
+    compare_chars(c.screen, expected_chars)
 
 
 def test_shift_view(state):
