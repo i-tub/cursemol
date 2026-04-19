@@ -360,7 +360,7 @@ def draw_atom(canvas: Canvas, atom: Chem.Atom, x: int, y: int, state: State,
     # Draw hydrogens if heteroatom
     h_str = ''
     h_on_left = False
-    if sym in 'NOPS':
+    if sym != 'C':
         try:
             atom.UpdatePropertyCache()
         except Exception:
